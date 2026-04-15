@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MONITOR
+  TECHNICIAN
+}
+
+enum TicketStatus {
+  OPEN
+  VIEWED
+  EN_ROUTE
+  IN_SERVICE
+  COMPLETED
+}
+
+model Unit {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  technicians User[]
+  tickets     Ticket[]
+}
+
+model User {
+  id           Int        @id @default(autoincrement())
+  cpf          String     @unique
+  name         String
+  passwordHash String
+  role         Role       @default(TECHNICIAN)
+  active       Boolean    @default(true)
+  unitId       Int?
+  unit         Unit?      @relation(fields: [unitId], references: [id])
+  createdAt    DateTime   @default(now())
+  assignedTickets Ticket[] @relation("AssignedTechnician")
+  history      TicketHistory[]
+}
+
+model Category {
+  id            Int           @id @default(autoincrement())
+  code          String        @unique
+  name          String
+  icon          String?
+  sortOrder     Int           @default(0)
+  allowsFreeText Boolean      @default(false)
+  subcategories Subcategory[]
+  tickets       Ticket[]
+}
+
+model Subcategory {
+  id         Int      @id @default(autoincrement())
+  name       String
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tickets    Ticket[]
+}
+
+model Ticket {
+  id              Int          @id @default(autoincrement())
+  ticketNumber    String       @unique
+  requesterName   String
+  requesterCpf    String
+  department      String
+  categoryId      Int
+  category        Category     @relation(fields: [categoryId], references: [id])
+  subcategoryId   Int?
+  subcategory     Subcategory? @relation(fields: [subcategoryId], references: [id])
+  freeTextDescription String?  @db.Text
+  status          TicketStatus @default(OPEN)
+  unitId          Int?
+  unit            Unit?        @relation(fields: [unitId], references: [id])
+  assignedTechId  Int?
+  assignedTech    User?        @relation("AssignedTechnician", fields: [assignedTechId], references: [id])
+  cause           String?      @db.Text
+  solution        String?      @db.Text
+  openedAt        DateTime     @default(now())
+  viewedAt        DateTime?
+  enRouteAt       DateTime?
+  inServiceAt     DateTime?
+  completedAt     DateTime?
+  glpiExportedAt  DateTime?
+  glpiTicketId    Int?
+  history         TicketHistory[]
+  feedback        Feedback?
+
+  @@index([status])
+  @@index([unitId])
+  @@index([assignedTechId])
+  @@index([openedAt])
+}
+
+model TicketHistory {
+  id         Int          @id @default(autoincrement())
+  ticketId   Int
+  ticket     Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus TicketStatus?
+  toStatus   TicketStatus
+  actorId    Int?
+  actor      User?        @relation(fields: [actorId], references: [id])
+  internalNote String?    @db.Text
+  createdAt  DateTime     @default(now())
+
+  @@index([ticketId])
+}
+
+model Feedback {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int      @unique
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+}
+
+model ConfigFlag {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
