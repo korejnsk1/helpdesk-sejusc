@@ -7,9 +7,8 @@ async function main() {
   // ── Unidades ────────────────────────────────────────────────────────────
   const units = [
     { name: "NSS - Núcleo de Suporte de Sistemas", description: "Tecnologia da Informação" },
-    { name: "Unidade Centro", description: "Atendimento região central" },
-    { name: "Unidade Norte", description: "Atendimento zona norte" },
-    { name: "Unidade Sul", description: "Atendimento zona sul" },
+    { name: "NIR - Núcleo de Infra e Redes", description: "Infraestrutura e Redes" },
+    { name: "NMT - Núcleo de Manutenção Técnica", description: "Manutenção Técnica" },
   ];
   for (const u of units) {
     await prisma.unit.upsert({
