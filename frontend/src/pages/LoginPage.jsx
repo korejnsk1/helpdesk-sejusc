@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { maskCpf, isValidCpf } from "../lib/cpf";
+import { Alert, Spinner } from "../components/ui";
+import { LogIn, ArrowLeft } from "lucide-react";
 
 export default function LoginPage() {
   const nav = useNavigate();
@@ -14,52 +16,73 @@ export default function LoginPage() {
   async function submit(e) {
     e.preventDefault();
     setErr("");
-    if (!isValidCpf(cpf)) return setErr("CPF inválido");
+    if (!isValidCpf(cpf)) return setErr("CPF inválido. Verifique e tente novamente.");
     setLoading(true);
     try {
       await login(cpf, password);
       nav("/painel");
     } catch (ex) {
-      setErr(ex.response?.data?.error || "Falha no login");
+      setErr(ex.response?.data?.error || "Credenciais incorretas.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <form onSubmit={submit} className="bg-white rounded-xl shadow p-6 w-full max-w-sm space-y-4">
-        <h1 className="text-xl font-semibold text-slate-800">Acesso técnico</h1>
-        <div>
-          <label className="text-sm text-slate-600">CPF</label>
-          <input
-            inputMode="numeric"
-            placeholder="000.000.000-00"
-            className="w-full border rounded-lg px-3 py-2"
-            value={cpf}
-            onChange={(e) => setCpf(maskCpf(e.target.value))}
-          />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 p-4">
+      <div className="w-full max-w-sm">
+
+        {/* Brand */}
+        <div className="flex flex-col items-center mb-8">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white text-lg font-bold shadow-card-md mb-3">
+            HD
+          </span>
+          <h1 className="text-xl font-bold text-slate-900">Acesso restrito</h1>
+          <p className="text-sm text-slate-500 mt-1">Monitor de plantão e técnicos</p>
         </div>
-        <div>
-          <label className="text-sm text-slate-600">Senha</label>
-          <input
-            type="password"
-            className="w-full border rounded-lg px-3 py-2"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+
+        <form onSubmit={submit} className="card p-6 space-y-4">
+          <div>
+            <label className="field-label">CPF</label>
+            <input
+              inputMode="numeric"
+              placeholder="000.000.000-00"
+              className="field-input"
+              value={cpf}
+              onChange={(e) => setCpf(maskCpf(e.target.value))}
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="field-label">Senha</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              className="field-input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          <Alert message={err} />
+
+          <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
+            {loading ? <Spinner className="h-4 w-4" /> : <LogIn size={16} />}
+            {loading ? "Entrando..." : "Entrar"}
+          </button>
+        </form>
+
+        <div className="mt-5 text-center">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition"
+          >
+            <ArrowLeft size={14} />
+            Voltar ao início
+          </Link>
         </div>
-        {err && <div className="text-sm text-red-600">{err}</div>}
-        <button
-          disabled={loading}
-          className="w-full bg-brand-600 disabled:bg-slate-300 text-white rounded-lg py-2 font-medium"
-        >
-          {loading ? "Entrando..." : "Entrar"}
-        </button>
-        <Link to="/" className="block text-center text-sm text-slate-500 hover:underline">
-          Voltar
-        </Link>
-      </form>
+      </div>
     </div>
   );
 }

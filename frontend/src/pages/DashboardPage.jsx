@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { useAuth } from "../context/AuthContext";
-import { STATUS_LABEL, formatElapsed } from "../lib/statuses";
+import { StatusBadge, KpiCard, Spinner } from "../components/ui";
+import AppHeader from "../components/AppHeader";
+import { formatElapsed } from "../lib/statuses";
+import { Ticket, AlertCircle, Activity, ChevronRight } from "lucide-react";
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,114 +25,120 @@ export default function DashboardPage() {
     }
   }
 
-  const byUnit = tickets.reduce((acc, t) => {
-    const key = t.unit?.name || "Sem unidade atribuída";
-    (acc[key] = acc[key] || []).push(t);
-    return acc;
-  }, {});
   const unassigned = tickets.filter((t) => !t.unit);
-  const openOrViewed = tickets.filter((t) =>
+  const active = tickets.filter((t) =>
     ["OPEN", "VIEWED", "EN_ROUTE", "IN_SERVICE"].includes(t.status)
   );
 
-  return (
-    <div className="min-h-screen">
-      <header className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="font-bold text-slate-800">HelpDesk SEJUSC</h1>
-            <nav className="text-sm flex gap-3">
-              <Link to="/painel" className="hover:underline">Painel</Link>
-              <Link to="/painel/relatorios" className="hover:underline">Relatórios</Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-slate-600">
-              {user?.name} ({user?.role === "MONITOR" ? "Monitor" : "Técnico"})
-            </span>
-            <button onClick={logout} className="text-red-600 hover:underline">Sair</button>
-          </div>
-        </div>
-      </header>
+  const byUnit = tickets.reduce((acc, t) => {
+    const key = t.unit?.name || "⚠ Sem unidade atribuída";
+    (acc[key] = acc[key] || []).push(t);
+    return acc;
+  }, {});
 
-      <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
-        <section className="grid sm:grid-cols-3 gap-3">
-          <Kpi title="Chamados hoje" value={tickets.length} />
-          <Kpi title="Em andamento" value={openOrViewed.length} />
-          <Kpi
+  // Unidades sem atribuição primeiro
+  const sortedUnits = Object.entries(byUnit).sort(([a]) =>
+    a.startsWith("⚠") ? -1 : 1
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <AppHeader />
+
+      <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-5">
+
+        {/* KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <KpiCard title="Chamados hoje" value={tickets.length} icon={Ticket} />
+          <KpiCard title="Em andamento" value={active.length} icon={Activity} />
+          <KpiCard
             title="Sem unidade atribuída"
             value={unassigned.length}
+            icon={AlertCircle}
             highlight={unassigned.length > 0}
           />
-        </section>
+        </div>
 
-        {loading && <div className="text-slate-500">Carregando...</div>}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Spinner className="h-8 w-8" />
+          </div>
+        )}
 
-        {Object.entries(byUnit).map(([unit, list]) => (
-          <section key={unit}>
-            <h2 className="font-semibold text-slate-800 mb-2">{unit}</h2>
-            <div className="bg-white rounded-xl shadow divide-y">
-              {list.map((t) => (
-                <Link
-                  key={t.id}
-                  to={`/painel/chamado/${t.id}`}
-                  className="p-4 flex items-center justify-between hover:bg-slate-50"
-                >
-                  <div>
-                    <div className="font-medium text-slate-800">{t.ticketNumber}</div>
-                    <div className="text-sm text-slate-600">
-                      {t.requesterName} — {t.department}
+        {/* Tickets por unidade */}
+        {!loading && tickets.length === 0 && (
+          <div className="card p-12 text-center">
+            <div className="text-4xl mb-3">📭</div>
+            <div className="font-semibold text-slate-700">Nenhum chamado hoje</div>
+            <p className="text-sm text-slate-400 mt-1">Os chamados aparecerão aqui assim que forem abertos</p>
+          </div>
+        )}
+
+        {sortedUnits.map(([unit, list]) => {
+          const noUnit = unit.startsWith("⚠");
+          return (
+            <section key={unit}>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <h2 className={`text-sm font-semibold flex items-center gap-2 ${noUnit ? "text-red-700" : "text-slate-700"}`}>
+                  {noUnit && <AlertCircle size={14} className="text-red-500" />}
+                  {noUnit ? "Sem unidade atribuída" : unit}
+                  <span className="text-xs font-normal text-slate-400">({list.length})</span>
+                </h2>
+              </div>
+
+              <div className="card divide-y divide-slate-100">
+                {list.map((t) => (
+                  <Link
+                    key={t.id}
+                    to={`/painel/chamado/${t.id}`}
+                    className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition"
+                  >
+                    {/* Status stripe */}
+                    <div className={`w-1 self-stretch rounded-full shrink-0 ${statusColor(t.status)}`} />
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-slate-500">{t.ticketNumber}</span>
+                        <StatusBadge status={t.status} />
+                      </div>
+                      <div className="text-sm font-medium text-slate-800 mt-0.5 truncate">
+                        {t.requesterName}
+                        <span className="text-slate-400 font-normal"> · {t.department}</span>
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        {t.category?.name}
+                        {t.subcategory ? ` · ${t.subcategory.name}` : ""}
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500">
-                      {t.category?.name}
-                      {t.subcategory ? ` · ${t.subcategory.name}` : ""}
+
+                    <div className="text-right shrink-0">
+                      <div className="text-xs text-slate-500">{formatElapsed(t.openedAt, t.completedAt)}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        {t.technician?.name || "—"}
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <StatusBadge status={t.status} />
-                    <div className="text-xs text-slate-500 mt-1">
-                      {formatElapsed(t.openedAt, t.completedAt)}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {t.technician?.name || "— sem técnico"}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ))}
+
+                    <ChevronRight
+                      size={16}
+                      className="text-slate-300 group-hover:text-brand-500 shrink-0 transition"
+                    />
+                  </Link>
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </main>
     </div>
   );
 }
 
-function Kpi({ title, value, highlight }) {
-  return (
-    <div
-      className={`rounded-xl p-4 shadow ${
-        highlight ? "bg-red-50 border border-red-200" : "bg-white"
-      }`}
-    >
-      <div className="text-xs text-slate-500">{title}</div>
-      <div className={`text-2xl font-bold ${highlight ? "text-red-700" : "text-slate-800"}`}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({ status }) {
-  const color = {
-    OPEN: "bg-slate-200 text-slate-700",
-    VIEWED: "bg-blue-100 text-blue-700",
-    EN_ROUTE: "bg-amber-100 text-amber-700",
-    IN_SERVICE: "bg-indigo-100 text-indigo-700",
-    COMPLETED: "bg-green-100 text-green-700",
-  }[status];
-  return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded ${color}`}>
-      {STATUS_LABEL[status]}
-    </span>
-  );
+function statusColor(s) {
+  return {
+    OPEN:       "bg-slate-300",
+    VIEWED:     "bg-blue-400",
+    EN_ROUTE:   "bg-amber-400",
+    IN_SERVICE: "bg-violet-500",
+    COMPLETED:  "bg-emerald-500",
+  }[s] || "bg-slate-300";
 }

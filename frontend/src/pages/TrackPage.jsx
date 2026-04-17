@@ -1,7 +1,27 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
-import { STATUS_ORDER, STATUS_LABEL, statusIndex, formatElapsed } from "../lib/statuses";
+import { STATUS_ORDER, statusIndex, formatElapsed } from "../lib/statuses";
+import { StatusBadge, InfoItem, Spinner } from "../components/ui";
+import {
+  Home, Clock, CheckCircle2, Circle, Star,
+} from "lucide-react";
+
+const STATUS_LABEL = {
+  OPEN:       "Aberto",
+  VIEWED:     "Visualizado",
+  EN_ROUTE:   "Técnico a caminho",
+  IN_SERVICE: "Em atendimento",
+  COMPLETED:  "Concluído",
+};
+
+const STATUS_DESC = {
+  OPEN:       "Chamado registrado, aguardando análise",
+  VIEWED:     "Monitor visualizou e atribuiu responsável",
+  EN_ROUTE:   "Técnico a caminho do seu departamento",
+  IN_SERVICE: "Atendimento em andamento",
+  COMPLETED:  "Problema resolvido",
+};
 
 export default function TrackPage() {
   const { ticketNumber } = useParams();
@@ -21,85 +41,145 @@ export default function TrackPage() {
       const { data } = await api.get(`/tickets/track/${ticketNumber}`);
       setTicket(data);
     } catch (e) {
-      setError(e.response?.data?.error || "Erro ao carregar chamado");
+      setError(e.response?.data?.error || "Chamado não encontrado");
     }
   }
 
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="text-center">
-          <p className="text-red-600">{error}</p>
-          <Link to="/" className="text-brand-600 hover:underline mt-4 inline-block">
-            Voltar ao início
+        <div className="card p-8 text-center max-w-sm w-full">
+          <div className="text-4xl mb-3">🔍</div>
+          <div className="font-semibold text-slate-800 mb-1">Chamado não encontrado</div>
+          <p className="text-sm text-slate-500 mb-5">{error}</p>
+          <Link to="/" className="btn-primary w-full justify-center">
+            <Home size={16} /> Voltar ao início
           </Link>
         </div>
       </div>
     );
   }
-  if (!ticket) return <div className="p-6 text-slate-500">Carregando...</div>;
+
+  if (!ticket) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner className="h-8 w-8" />
+      </div>
+    );
+  }
 
   const currentIdx = statusIndex(ticket.status);
   const timestamps = {
-    OPEN: ticket.openedAt,
-    VIEWED: ticket.viewedAt,
-    EN_ROUTE: ticket.enRouteAt,
+    OPEN:       ticket.openedAt,
+    VIEWED:     ticket.viewedAt,
+    EN_ROUTE:   ticket.enRouteAt,
     IN_SERVICE: ticket.inServiceAt,
-    COMPLETED: ticket.completedAt,
+    COMPLETED:  ticket.completedAt,
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8 max-w-3xl mx-auto">
-      <Link to="/" className="text-sm text-slate-500 hover:underline">← Início</Link>
+    <div className="min-h-screen bg-slate-50">
+      {/* Topbar */}
+      <header className="bg-white border-b border-slate-200 px-4 h-14 flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition">
+          <Home size={15} />
+          Início
+        </Link>
+        <div className="h-4 w-px bg-slate-200" />
+        <span className="text-sm font-mono text-slate-600">{ticket.ticketNumber}</span>
+      </header>
 
-      <div className="bg-white rounded-xl shadow p-6 mt-4">
-        <div className="flex flex-wrap justify-between items-start gap-2">
-          <div>
-            <div className="text-xs text-slate-500">Protocolo</div>
-            <div className="text-xl font-bold text-slate-800">{ticket.ticketNumber}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-slate-500">Tempo decorrido</div>
-            <div className="font-semibold text-slate-800">
-              {formatElapsed(ticket.openedAt, ticket.completedAt)}
+      <main className="max-w-2xl mx-auto p-4 md:p-8 space-y-4">
+
+        {/* Status hero */}
+        <div className="card p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs text-slate-500 mb-1">Protocolo</div>
+              <div className="text-xl font-bold text-slate-900 font-mono tracking-wide">
+                {ticket.ticketNumber}
+              </div>
+            </div>
+            <div className="text-right">
+              <StatusBadge status={ticket.status} />
+              <div className="flex items-center gap-1 mt-2 text-xs text-slate-500 justify-end">
+                <Clock size={11} />
+                {formatElapsed(ticket.openedAt, ticket.completedAt)}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-3 mt-4 text-sm">
-          <Info label="Solicitante" value={ticket.requesterName} />
-          <Info label="Departamento" value={ticket.department} />
-          <Info label="Categoria" value={ticket.category} />
-          <Info label="Subcategoria" value={ticket.subcategory || "—"} />
+        {/* Dados do chamado */}
+        <div className="card p-5">
+          <h2 className="text-sm font-semibold text-slate-900 mb-4">Informações</h2>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <InfoItem label="Solicitante" value={ticket.requesterName} />
+            <InfoItem label="Departamento" value={ticket.department} />
+            <InfoItem label="Categoria" value={ticket.category} />
+            <InfoItem label="Subcategoria" value={ticket.subcategory} />
+            <InfoItem
+              label="Unidade responsável"
+              value={ticket.unit || "Aguardando atribuição..."}
+            />
+            <InfoItem
+              label="Técnico responsável"
+              value={ticket.technician || "Aguardando atribuição..."}
+            />
+          </dl>
           {ticket.freeTextDescription && (
-            <div className="sm:col-span-2">
-              <Info label="Descrição" value={ticket.freeTextDescription} />
+            <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+              <div className="text-xs font-medium text-slate-500 mb-1">Descrição</div>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                {ticket.freeTextDescription}
+              </p>
             </div>
           )}
-          <Info label="Unidade responsável" value={ticket.unit || "Aguardando..."} />
-          <Info label="Técnico responsável" value={ticket.technician || "Aguardando..."} />
         </div>
 
-        <div className="mt-8">
-          <h2 className="font-semibold mb-4">Acompanhamento</h2>
-          <ol className="relative border-l-2 border-slate-200 ml-2">
+        {/* Timeline */}
+        <div className="card p-5">
+          <h2 className="text-sm font-semibold text-slate-900 mb-5">Acompanhamento</h2>
+          <ol className="space-y-0">
             {STATUS_ORDER.map((s, i) => {
               const done = i <= currentIdx;
+              const active = i === currentIdx;
+              const isLast = i === STATUS_ORDER.length - 1;
               return (
-                <li key={s} className="ml-4 pb-4">
-                  <span
-                    className={`absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full ${
-                      done ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-500"
-                    }`}
-                  >
-                    {done ? "✓" : i + 1}
-                  </span>
-                  <div className={done ? "text-slate-800" : "text-slate-400"}>
-                    <div className="font-medium">{STATUS_LABEL[s]}</div>
-                    {timestamps[s] && (
-                      <div className="text-xs text-slate-500">
-                        {new Date(timestamps[s]).toLocaleString("pt-BR")}
+                <li key={s} className="flex gap-3">
+                  {/* Icon + line */}
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                        done
+                          ? "border-brand-600 bg-brand-600 text-white"
+                          : "border-slate-200 bg-white text-slate-300"
+                      } ${active && !done ? "ring-3 ring-brand-600/20" : ""}`}
+                    >
+                      {done ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                    </div>
+                    {!isLast && (
+                      <div className={`w-0.5 flex-1 min-h-[28px] my-1 ${done ? "bg-brand-600" : "bg-slate-200"}`} />
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="pb-4 min-w-0">
+                    <div className={`text-sm font-medium leading-7 ${done ? "text-slate-900" : "text-slate-400"}`}>
+                      {STATUS_LABEL[s]}
+                    </div>
+                    {done && (
+                      <div className="text-xs text-slate-500 -mt-1">
+                        {STATUS_DESC[s]}
+                        {timestamps[s] && (
+                          <span className="ml-2 text-slate-400">
+                            · {new Date(timestamps[s]).toLocaleString("pt-BR")}
+                          </span>
+                        )}
                       </div>
+                    )}
+                    {!done && (
+                      <div className="text-xs text-slate-400 -mt-1">{STATUS_DESC[s]}</div>
                     )}
                   </div>
                 </li>
@@ -108,25 +188,24 @@ export default function TrackPage() {
           </ol>
         </div>
 
+        {/* Feedback */}
         {ticket.status === "COMPLETED" && config.feedbackEnabled && !ticket.hasFeedback && (
           <FeedbackForm ticketNumber={ticket.ticketNumber} onSaved={load} />
         )}
-      </div>
-    </div>
-  );
-}
-
-function Info({ label, value }) {
-  return (
-    <div>
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="text-slate-800">{value}</div>
+        {ticket.hasFeedback && (
+          <div className="card p-5 flex items-center gap-3 text-sm text-emerald-700">
+            <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+            Avaliação enviada. Obrigado pelo seu feedback!
+          </div>
+        )}
+      </main>
     </div>
   );
 }
 
 function FeedbackForm({ ticketNumber, onSaved }) {
   const [rating, setRating] = useState(0);
+  const [hover, setHover] = useState(0);
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -144,33 +223,60 @@ function FeedbackForm({ ticketNumber, onSaved }) {
     }
   }
 
+  const labels = ["", "Muito ruim", "Ruim", "Regular", "Bom", "Excelente"];
+
   return (
-    <div className="mt-8 border-t pt-6">
-      <h3 className="font-semibold">Avalie o atendimento</h3>
-      <div className="flex gap-1 mt-2">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            onClick={() => setRating(n)}
-            className={`text-3xl ${n <= rating ? "text-yellow-400" : "text-slate-300"}`}
-          >
-            ★
-          </button>
-        ))}
+    <div className="card p-5 space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-900">Avalie o atendimento</h3>
+        <p className="text-xs text-slate-500 mt-0.5">Sua opinião ajuda a melhorar o serviço</p>
       </div>
-      <textarea
-        placeholder="Comentário (opcional)"
-        className="w-full border rounded-lg px-3 py-2 mt-3"
-        rows={3}
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-      />
-      {err && <div className="text-sm text-red-600 mt-1">{err}</div>}
+
+      <div>
+        <div className="flex gap-1">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              onMouseEnter={() => setHover(n)}
+              onMouseLeave={() => setHover(0)}
+              onClick={() => setRating(n)}
+              className="transition-transform hover:scale-110"
+            >
+              <Star
+                size={28}
+                className={`transition ${
+                  n <= (hover || rating)
+                    ? "fill-yellow-400 text-yellow-400"
+                    : "text-slate-200"
+                }`}
+              />
+            </button>
+          ))}
+        </div>
+        {(hover || rating) > 0 && (
+          <p className="text-xs text-slate-500 mt-1">{labels[hover || rating]}</p>
+        )}
+      </div>
+
+      <div>
+        <label className="field-label">Comentário (opcional)</label>
+        <textarea
+          rows={3}
+          placeholder="Conte como foi o atendimento..."
+          className="field-input resize-none"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+      </div>
+
+      {err && <p className="text-sm text-red-600">{err}</p>}
+
       <button
         disabled={!rating || saving}
         onClick={submit}
-        className="mt-3 bg-brand-600 disabled:bg-slate-300 text-white rounded-lg py-2 px-4"
+        className="btn-primary"
       >
+        {saving ? <Spinner className="h-4 w-4" /> : <Star size={15} />}
         {saving ? "Enviando..." : "Enviar avaliação"}
       </button>
     </div>
