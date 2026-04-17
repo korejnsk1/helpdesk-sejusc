@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { login, me } from "../controllers/authController.js";
+import { register, listUsers, updateUser, listMonitors } from "../controllers/userController.js";
 import {
   createTicket,
   getTicketPublic,
@@ -35,7 +36,15 @@ router.post("/tickets/track/:ticketNumber/feedback", submitFeedback);
 
 // Autenticação
 router.post("/auth/login", login);
+router.post("/auth/register", register);
 router.get("/auth/me", authRequired, me);
+
+// Monitores ativos (público — para exibir no dashboard/login)
+router.get("/monitors", listMonitors);
+
+// Gestão de usuários (monitor only)
+router.get("/users", authRequired, requireRole("MONITOR"), listUsers);
+router.patch("/users/:id", authRequired, requireRole("MONITOR"), updateUser);
 
 // Área restrita (técnico/monitor)
 router.get("/units", authRequired, listUnits);

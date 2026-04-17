@@ -73,7 +73,13 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-5 text-center">
+        <div className="mt-5 flex flex-col items-center gap-2">
+          <Link
+            to="/cadastro"
+            className="text-sm text-brand-600 hover:text-brand-700 font-medium transition"
+          >
+            Primeiro acesso? Solicitar cadastro
+          </Link>
           <Link
             to="/"
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition"

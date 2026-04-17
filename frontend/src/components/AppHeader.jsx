@@ -1,15 +1,37 @@
 import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { LayoutDashboard, BarChart2, LogOut } from "lucide-react";
+import { api } from "../lib/api";
+import { LayoutDashboard, BarChart2, LogOut, Users, ShieldCheck } from "lucide-react";
 
 export default function AppHeader() {
   const { user, logout } = useAuth();
   const loc = useLocation();
+  const [pendingCount, setPendingCount] = useState(0);
+  const [monitors, setMonitors] = useState([]);
 
-  const navLink = (to, label, Icon) => (
+  useEffect(() => {
+    api.get("/monitors").then((r) => setMonitors(r.data));
+    if (user?.role === "MONITOR") {
+      api.get("/users?active=false").then((r) => {
+        setPendingCount(r.data.filter((u) => u.role === "TECHNICIAN").length);
+      });
+    }
+    const t = setInterval(() => {
+      api.get("/monitors").then((r) => setMonitors(r.data));
+      if (user?.role === "MONITOR") {
+        api.get("/users?active=false").then((r) => {
+          setPendingCount(r.data.filter((u) => u.role === "TECHNICIAN").length);
+        });
+      }
+    }, 30000);
+    return () => clearInterval(t);
+  }, [user]);
+
+  const navLink = (to, label, Icon, badge = 0) => (
     <Link
       to={to}
-      className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition ${
+      className={`relative flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition ${
         loc.pathname === to
           ? "bg-brand-50 text-brand-700"
           : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
@@ -17,6 +39,11 @@ export default function AppHeader() {
     >
       <Icon size={15} />
       {label}
+      {badge > 0 && (
+        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">
+          {badge > 9 ? "9+" : badge}
+        </span>
+      )}
     </Link>
   );
 
@@ -37,10 +64,22 @@ export default function AppHeader() {
         <nav className="flex items-center gap-1">
           {navLink("/painel", "Painel", LayoutDashboard)}
           {navLink("/painel/relatorios", "Relatórios", BarChart2)}
+          {user?.role === "MONITOR" &&
+            navLink("/painel/usuarios", "Usuários", Users, pendingCount)}
         </nav>
 
-        {/* User */}
+        {/* Monitor de plantão + user */}
         <div className="flex items-center gap-3 text-sm shrink-0">
+          {/* Badge monitor de plantão */}
+          {monitors.length > 0 && (
+            <div className="hidden md:flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-xs text-brand-700">
+              <ShieldCheck size={12} />
+              <span className="font-medium">
+                {monitors.map((m) => m.name.split(" ")[0]).join(", ")}
+              </span>
+            </div>
+          )}
+
           <div className="hidden sm:block text-right">
             <div className="font-medium text-slate-800 leading-tight">{user?.name}</div>
             <div className="text-xs text-slate-500">
