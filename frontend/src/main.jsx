@@ -13,7 +13,7 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import UsersPage from "./pages/UsersPage";
 import "./index.css";
 
-function Protected({ children, monitorOnly = false }) {
+function Protected({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -21,7 +21,7 @@ function Protected({ children, monitorOnly = false }) {
     </div>
   );
   if (!user) return <Navigate to="/login" replace />;
-  if (monitorOnly && user.role !== "MONITOR") return <Navigate to="/painel" replace />;
+  if (adminOnly && user.role !== "ADMIN") return <Navigate to="/painel" replace />;
   return children;
 }
 
@@ -43,7 +43,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/painel/relatorios" element={<Protected><AnalyticsPage /></Protected>} />
 
           {/* Monitor only */}
-          <Route path="/painel/usuarios" element={<Protected monitorOnly><UsersPage /></Protected>} />
+          <Route path="/painel/usuarios" element={<Protected adminOnly><UsersPage /></Protected>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

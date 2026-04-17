@@ -206,7 +206,7 @@ export async function transitionTicket(req, res) {
   }
 
   // Only monitors can transition tickets
-  if (req.user.role !== "MONITOR") {
+  if (!["MONITOR", "ADMIN"].includes(req.user.role)) {
     return res.status(403).json({ error: "Apenas o monitor de plantão pode alterar o status" });
   }
 

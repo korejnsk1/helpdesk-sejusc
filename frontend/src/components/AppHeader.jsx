@@ -2,7 +2,13 @@ import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
-import { LayoutDashboard, BarChart2, LogOut, Users, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, BarChart2, LogOut, Users, ShieldCheck, Crown } from "lucide-react";
+
+const ROLE_LABEL = {
+  ADMIN:       "Administrador",
+  MONITOR:     "Monitor de plantão",
+  TECHNICIAN:  "Técnico",
+};
 
 export default function AppHeader() {
   const { user, logout } = useAuth();
@@ -12,14 +18,14 @@ export default function AppHeader() {
 
   useEffect(() => {
     api.get("/monitors").then((r) => setMonitors(r.data));
-    if (user?.role === "MONITOR") {
+    if (user?.role === "ADMIN") {
       api.get("/users?active=false").then((r) => {
         setPendingCount(r.data.filter((u) => u.role === "TECHNICIAN").length);
       });
     }
     const t = setInterval(() => {
       api.get("/monitors").then((r) => setMonitors(r.data));
-      if (user?.role === "MONITOR") {
+      if (user?.role === "ADMIN") {
         api.get("/users?active=false").then((r) => {
           setPendingCount(r.data.filter((u) => u.role === "TECHNICIAN").length);
         });
@@ -64,14 +70,14 @@ export default function AppHeader() {
         <nav className="flex items-center gap-1">
           {navLink("/painel", "Painel", LayoutDashboard)}
           {navLink("/painel/relatorios", "Relatórios", BarChart2)}
-          {user?.role === "MONITOR" &&
+          {user?.role === "ADMIN" &&
             navLink("/painel/usuarios", "Usuários", Users, pendingCount)}
         </nav>
 
         {/* Monitor de plantão + user */}
         <div className="flex items-center gap-3 text-sm shrink-0">
-          {/* Badge monitor de plantão */}
-          {monitors.length > 0 && (
+          {/* Badge monitores ativos (para admin/técnicos saberem quem está de plantão) */}
+          {monitors.length > 0 && user?.role !== "ADMIN" && (
             <div className="hidden md:flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-xs text-brand-700">
               <ShieldCheck size={12} />
               <span className="font-medium">
@@ -81,9 +87,12 @@ export default function AppHeader() {
           )}
 
           <div className="hidden sm:block text-right">
-            <div className="font-medium text-slate-800 leading-tight">{user?.name}</div>
+            <div className="flex items-center gap-1.5 justify-end">
+              {user?.role === "ADMIN" && <Crown size={12} className="text-amber-500" />}
+              <span className="font-medium text-slate-800 leading-tight">{user?.name}</span>
+            </div>
             <div className="text-xs text-slate-500">
-              {user?.role === "MONITOR" ? "Monitor de plantão" : "Técnico"}
+              {ROLE_LABEL[user?.role] || user?.role}
               {user?.unit ? ` · ${user.unit.name}` : ""}
             </div>
           </div>

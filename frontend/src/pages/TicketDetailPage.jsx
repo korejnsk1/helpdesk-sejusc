@@ -78,7 +78,7 @@ export default function TicketDetailPage() {
     </div>
   );
 
-  const isMonitor = user?.role === "MONITOR";
+  const isMonitor = ["MONITOR", "ADMIN"].includes(user?.role);
   const filteredTechs = form.unitId
     ? techs.filter((t) => t.unitId === Number(form.unitId))
     : techs;

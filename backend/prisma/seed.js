@@ -4,7 +4,7 @@ import bcrypt from "bcrypt";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Unidades iniciais da SEJUSC
+  // ── Unidades ────────────────────────────────────────────────────────────
   const units = [
     { name: "NSS - Núcleo de Suporte de Sistemas", description: "Tecnologia da Informação" },
     { name: "Unidade Centro", description: "Atendimento região central" },
@@ -19,7 +19,7 @@ async function main() {
     });
   }
 
-  // Categorias e subcategorias
+  // ── Categorias e subcategorias ───────────────────────────────────────────
   const categories = [
     {
       code: "HARDWARE",
@@ -103,43 +103,39 @@ async function main() {
     }
   }
 
-  // Usuário monitor padrão (CPF fictício válido para desenvolvimento)
-  // CPF: 529.982.247-25 (válido pelo algoritmo)
+  // ── Usuário ADMIN (único usuário pré-criado) ─────────────────────────────
+  // CPF do administrador do sistema
+  const adminCpf = "48215374867";
+  const adminHash = await bcrypt.hash("admin@2025", 10);
+
   const nss = await prisma.unit.findUnique({
     where: { name: "NSS - Núcleo de Suporte de Sistemas" },
   });
-  const monitorCpf = "52998224725";
-  const monitorHash = await bcrypt.hash("admin123", 10);
+
   await prisma.user.upsert({
-    where: { cpf: monitorCpf },
+    where: { cpf: adminCpf },
     create: {
-      cpf: monitorCpf,
-      name: "Monitor de Plantão",
-      passwordHash: monitorHash,
-      role: "MONITOR",
+      cpf: adminCpf,
+      name: "Administrador SEJUSC",
+      passwordHash: adminHash,
+      role: "ADMIN",
+      active: true,
       unitId: nss?.id || null,
     },
-    update: {},
-  });
-
-  // Técnico de exemplo — CPF 111.444.777-35 (válido)
-  const techCpf = "11144477735";
-  const techHash = await bcrypt.hash("tec123", 10);
-  await prisma.user.upsert({
-    where: { cpf: techCpf },
-    create: {
-      cpf: techCpf,
-      name: "Técnico NSS",
-      passwordHash: techHash,
-      role: "TECHNICIAN",
-      unitId: nss?.id || null,
+    update: {
+      role: "ADMIN",
+      active: true,
     },
-    update: {},
   });
 
-  console.log("Seed concluído.");
-  console.log("Monitor -> CPF: 529.982.247-25 | senha: admin123");
-  console.log("Técnico -> CPF: 111.444.777-35 | senha: tec123");
+  // Remove usuários de desenvolvimento antigos (CPFs fictícios do seed anterior)
+  await prisma.user.deleteMany({
+    where: { cpf: { in: ["52998224725", "11144477735"] } },
+  });
+
+  console.log("✅ Seed concluído.");
+  console.log("Admin → CPF: 482.153.748-67 | senha: admin@2025");
+  console.log("Demais usuários devem se cadastrar via /cadastro e aguardar aprovação.");
 }
 
 main()
