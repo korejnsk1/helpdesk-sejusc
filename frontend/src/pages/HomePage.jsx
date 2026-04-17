@@ -14,14 +14,29 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
-      {/* Header mínimo */}
-      <header className="px-6 py-4 flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white text-sm font-bold">
-          HD
-        </span>
-        <span className="text-sm font-semibold text-slate-700">
-          HelpDesk <span className="text-slate-400 font-normal">SEJUSC</span>
-        </span>
+
+      {/* Barra institucional */}
+      <header className="bg-white border-b border-slate-200 px-4 py-3">
+        <div className="max-w-md mx-auto flex items-center justify-between gap-4">
+          {/* Logo Governo do Amazonas */}
+          <img
+            src="/logo-governo-am.png"
+            alt="Governo do Estado do Amazonas"
+            className="h-10 object-contain"
+          />
+
+          {/* Divisor */}
+          <div className="h-8 w-px bg-slate-200 shrink-0" />
+
+          {/* Identidade SEJUSC */}
+          <div className="text-right">
+            <div className="text-xs font-bold text-slate-700 leading-tight tracking-wide">SEJUSC</div>
+            <div className="text-[10px] text-slate-500 leading-tight max-w-[160px]">
+              Secretaria de Estado de Justiça,<br />
+              Direitos Humanos e Cidadania
+            </div>
+          </div>
+        </div>
       </header>
 
       {/* Hero */}
@@ -35,7 +50,7 @@ export default function HomePage() {
             </div>
             <h1 className="text-2xl font-bold text-slate-900">Central de Suporte TI</h1>
             <p className="mt-1.5 text-slate-500 text-sm">
-              Secretaria de Justiça e Segurança Pública do Amazonas
+              Núcleo de Suporte de Sistemas — SEJUSC
             </p>
           </div>
 
@@ -95,6 +110,15 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      {/* Rodapé institucional */}
+      <footer className="py-4 text-center">
+        <img
+          src="/logo-gov.svg"
+          alt="Governo do Amazonas"
+          className="h-8 object-contain mx-auto opacity-50"
+        />
+      </footer>
     </div>
   );
 }
