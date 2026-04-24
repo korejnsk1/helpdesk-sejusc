@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { maskCpf, isValidCpf } from "../lib/cpf";
 import { Alert, Spinner } from "../components/ui";
-import { LogIn, ArrowLeft } from "lucide-react";
+import { LogIn, ArrowLeft, Sun, Moon } from "lucide-react";
 
 export default function LoginPage() {
   const nav = useNavigate();
   const { login } = useAuth();
+  const { dark, toggle } = useTheme();
   const [cpf, setCpf] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
@@ -29,7 +31,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-4">
+
+      {/* Botão de tema — canto superior direito */}
+      <button
+        onClick={toggle}
+        title={dark ? "Modo claro" : "Modo escuro"}
+        className="fixed top-4 right-4 flex h-9 w-9 items-center justify-center rounded-xl bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-100 shadow-sm transition"
+      >
+        {dark ? <Sun size={16} /> : <Moon size={16} />}
+      </button>
+
       <div className="w-full max-w-sm">
 
         {/* Brand */}
@@ -37,8 +49,8 @@ export default function LoginPage() {
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white text-lg font-bold shadow-card-md mb-3">
             HD
           </span>
-          <h1 className="text-xl font-bold text-slate-900">Acesso restrito</h1>
-          <p className="text-sm text-slate-500 mt-1">Monitor de plantão e técnicos</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-gray-100">Acesso restrito</h1>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Técnicos e Monitores</p>
         </div>
 
         <form onSubmit={submit} className="card p-6 space-y-4">
@@ -76,13 +88,13 @@ export default function LoginPage() {
         <div className="mt-5 flex flex-col items-center gap-2">
           <Link
             to="/cadastro"
-            className="text-sm text-brand-600 hover:text-brand-700 font-medium transition"
+            className="text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-medium transition"
           >
             Primeiro acesso? Solicitar cadastro
           </Link>
           <Link
             to="/"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition"
           >
             <ArrowLeft size={14} />
             Voltar ao início

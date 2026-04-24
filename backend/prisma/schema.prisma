@@ -21,6 +21,14 @@ enum TicketStatus {
   COMPLETED
 }
 
+model Department {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  tickets   Ticket[]
+}
+
 model Unit {
   id          Int        @id @default(autoincrement())
   name        String     @unique
@@ -69,6 +77,8 @@ model Ticket {
   requesterName   String
   requesterCpf    String
   department      String
+  departmentId    Int?
+  departmentRef   Department?  @relation(fields: [departmentId], references: [id])
   categoryId      Int
   category        Category     @relation(fields: [categoryId], references: [id])
   subcategoryId   Int?
@@ -79,6 +89,7 @@ model Ticket {
   unit            Unit?        @relation(fields: [unitId], references: [id])
   assignedTechId  Int?
   assignedTech    User?        @relation("AssignedTechnician", fields: [assignedTechId], references: [id])
+  anyDeskCode     String?
   cause           String?      @db.Text
   solution        String?      @db.Text
   openedAt        DateTime     @default(now())

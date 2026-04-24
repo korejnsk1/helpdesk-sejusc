@@ -8,10 +8,11 @@ import { exportTicketToGlpi } from "../services/glpiService.js";
 const createTicketSchema = z.object({
   requesterName: z.string().min(3, "Nome muito curto"),
   requesterCpf: z.string(),
-  department: z.string().min(2),
+  departmentId: z.number().int().positive("Selecione um setor"),
   categoryId: z.number().int().positive(),
   subcategoryId: z.number().int().positive().optional().nullable(),
   freeTextDescription: z.string().optional().nullable(),
+  anyDeskCode: z.string().optional().nullable(),
 });
 
 export async function createTicket(req, res) {
@@ -25,13 +26,25 @@ export async function createTicket(req, res) {
     return res.status(400).json({ error: "CPF inválido" });
   }
 
+  // Valida e busca o nome do setor
+  const dept = await prisma.department.findUnique({ where: { id: data.departmentId } });
+  if (!dept || !dept.active) {
+    return res.status(400).json({ error: "Setor inválido ou inativo" });
+  }
+
   const category = await prisma.category.findUnique({
     where: { id: data.categoryId },
     include: { subcategories: true },
   });
   if (!category) return res.status(400).json({ error: "Categoria inexistente" });
 
-  if (category.allowsFreeText) {
+  const isRemote = category.code === "REMOTE";
+
+  if (isRemote) {
+    if (!data.anyDeskCode || data.anyDeskCode.trim().length < 3) {
+      return res.status(400).json({ error: "Informe o código do AnyDesk (mínimo 3 caracteres)" });
+    }
+  } else if (category.allowsFreeText) {
     if (!data.freeTextDescription || data.freeTextDescription.trim().length < 5) {
       return res.status(400).json({ error: "Descreva o problema (mínimo 5 caracteres)" });
     }
@@ -56,10 +69,12 @@ export async function createTicket(req, res) {
       ticketNumber,
       requesterName: data.requesterName.trim(),
       requesterCpf: cleanCpf,
-      department: data.department.trim(),
+      department: dept.name,
+      departmentId: dept.id,
       categoryId: data.categoryId,
-      subcategoryId: category.allowsFreeText ? null : data.subcategoryId,
-      freeTextDescription: category.allowsFreeText ? data.freeTextDescription.trim() : null,
+      subcategoryId: (!isRemote && !category.allowsFreeText) ? data.subcategoryId : null,
+      freeTextDescription: (!isRemote && category.allowsFreeText) ? data.freeTextDescription.trim() : null,
+      anyDeskCode: isRemote ? data.anyDeskCode.trim() : null,
       status: STATUS.OPEN,
       history: {
         create: { toStatus: STATUS.OPEN },
@@ -98,6 +113,8 @@ export async function getTicketPublic(req, res) {
     category: ticket.category?.name,
     subcategory: ticket.subcategory?.name,
     freeTextDescription: ticket.freeTextDescription,
+    anyDeskCode: ticket.anyDeskCode || null,
+    isRemote: !!(ticket.anyDeskCode),
     unit: ticket.unit?.name || null,
     technician: ticket.assignedTech?.name || null,
     openedAt: ticket.openedAt,
@@ -163,6 +180,8 @@ export async function getTicket(req, res) {
   if (!ticket) return res.status(404).json({ error: "Chamado não encontrado" });
   res.json({
     ...formatTicket(ticket),
+    anyDeskCode: ticket.anyDeskCode || null,
+    isRemote: !!(ticket.anyDeskCode),
     cause: ticket.cause,
     solution: ticket.solution,
     history: ticket.history,
@@ -181,6 +200,8 @@ function formatTicket(t) {
     category: t.category ? { id: t.category.id, name: t.category.name } : null,
     subcategory: t.subcategory ? { id: t.subcategory.id, name: t.subcategory.name } : null,
     freeTextDescription: t.freeTextDescription,
+    anyDeskCode: t.anyDeskCode || null,
+    isRemote: !!(t.anyDeskCode),
     status: t.status,
     unit: t.unit ? { id: t.unit.id, name: t.unit.name } : null,
     technician: t.assignedTech || null,
@@ -271,6 +292,21 @@ export async function transitionTicket(req, res) {
   }
 
   res.json({ ok: true, status: updated.status });
+}
+
+// DELETE /api/tickets/:id — apenas ADMIN, apenas COMPLETED
+export async function deleteTicket(req, res) {
+  const id = Number(req.params.id);
+  const ticket = await prisma.ticket.findUnique({ where: { id } });
+  if (!ticket) return res.status(404).json({ error: "Chamado não encontrado" });
+  if (ticket.status !== "COMPLETED") {
+    return res.status(400).json({ error: "Apenas chamados concluídos podem ser excluídos" });
+  }
+  // Remove registros relacionados antes (histórico + feedback)
+  await prisma.ticketHistory.deleteMany({ where: { ticketId: id } });
+  await prisma.feedback.deleteMany({ where: { ticketId: id } });
+  await prisma.ticket.delete({ where: { id } });
+  res.json({ ok: true });
 }
 
 export async function submitFeedback(req, res) {

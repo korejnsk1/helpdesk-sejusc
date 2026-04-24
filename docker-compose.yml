@@ -1,4 +1,6 @@
 services:
+
+  # ── Banco de dados ──────────────────────────────────────────────────────
   mysql:
     image: mysql:8.0
     container_name: helpdesk-mysql
@@ -17,7 +19,58 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-phelpdesk_root"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 12
+    networks:
+      - helpdesk-net
+
+  # ── API Backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: helpdesk-backend
+    restart: unless-stopped
+    ports:
+      - "3333:3333"          # acessível em <IP-do-servidor>:3333
+    environment:
+      DATABASE_URL: "mysql://root:helpdesk_root@mysql:3306/helpdesk_sejusc"
+      JWT_SECRET: "troque-em-producao-7f2a9c1e"
+      JWT_EXPIRES_IN: "8h"
+      PORT: 3333
+      CORS_ORIGIN: "*"       # em produção restringir ao IP da rede interna
+      FEEDBACK_ENABLED: "true"
+      GLPI_ENABLED: "false"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app          # hot-reload: edições locais refletem no container
+      - /app/node_modules       # preserva node_modules do container
+    networks:
+      - helpdesk-net
+
+  # ── Frontend Vite ───────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: helpdesk-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"            # acessível em <IP-do-servidor>:5173
+    environment:
+      VITE_API_HOST: backend   # proxy aponta para o container backend
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - helpdesk-net
+
+networks:
+  helpdesk-net:
+    driver: bridge
 
 volumes:
   helpdesk_mysql_data:

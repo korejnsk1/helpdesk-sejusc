@@ -7,7 +7,7 @@ async function main() {
   // ── Unidades ────────────────────────────────────────────────────────────
   const units = [
     { name: "NSS - Núcleo de Suporte de Sistemas", description: "Tecnologia da Informação" },
-    { name: "NIR - Núcleo de Infra e Redes", description: "Infraestrutura e Redes" },
+    { name: "NIR - Núcleo de Infraestrutura de Redes", description: "Infraestrutura e Redes" },
     { name: "NMT - Núcleo de Manutenção Técnica", description: "Manutenção Técnica" },
   ];
   for (const u of units) {
@@ -30,7 +30,6 @@ async function main() {
         "Computador não liga",
         "Monitor sem imagem",
         "Teclado/Mouse com defeito",
-        "Impressora com erro",
         "Cabo/Conexão",
         "Outro hardware",
       ],
@@ -47,6 +46,7 @@ async function main() {
         "Cabo de rede",
         "Wi-Fi não conecta",
         "VPN não conecta",
+        "Falha de Confiança"
       ],
     },
     {
@@ -59,7 +59,7 @@ async function main() {
         "Esqueci a senha",
         "Usuário bloqueado",
         "Solicitar acesso a novo sistema",
-        "Problema no GLPI",
+        "Problema no SIGED",
         "Problema no e-mail institucional",
       ],
     },

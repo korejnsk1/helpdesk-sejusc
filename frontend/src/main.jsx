@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import HomePage from "./pages/HomePage";
 import NewTicketPage from "./pages/NewTicketPage";
 import TrackPage from "./pages/TrackPage";
@@ -11,6 +12,7 @@ import DashboardPage from "./pages/DashboardPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import UsersPage from "./pages/UsersPage";
+import DepartmentsPage from "./pages/DepartmentsPage";
 import "./index.css";
 
 function Protected({ children, adminOnly = false }) {
@@ -27,6 +29,7 @@ function Protected({ children, adminOnly = false }) {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
+    <ThemeProvider>
     <BrowserRouter>
       <AuthProvider>
         <Routes>
@@ -42,12 +45,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/painel/chamado/:id" element={<Protected><TicketDetailPage /></Protected>} />
           <Route path="/painel/relatorios" element={<Protected><AnalyticsPage /></Protected>} />
 
-          {/* Monitor only */}
+          {/* Admin only */}
           <Route path="/painel/usuarios" element={<Protected adminOnly><UsersPage /></Protected>} />
+          <Route path="/painel/setores" element={<Protected adminOnly><DepartmentsPage /></Protected>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
+    </ThemeProvider>
   </React.StrictMode>
 );

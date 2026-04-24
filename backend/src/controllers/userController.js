@@ -82,7 +82,22 @@ export async function updateUser(req, res) {
   const data = {};
   if (active !== undefined) data.active = active;
   if (unitId !== undefined) data.unitId = unitId ? Number(unitId) : null;
-  if (role !== undefined && ["MONITOR", "TECHNICIAN"].includes(role)) data.role = role;
+
+  if (role !== undefined) {
+    const validRoles = ["MONITOR", "TECHNICIAN", "ADMIN"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: "Papel inválido" });
+    }
+    // Apenas ADMIN pode conceder ou revogar papel de ADMIN
+    if ((role === "ADMIN" || user.role === "ADMIN") && req.user.role !== "ADMIN") {
+      return res.status(403).json({ error: "Apenas administradores podem alterar permissões de administrador" });
+    }
+    // Não pode remover o próprio ADMIN
+    if (id === req.user.id && role !== "ADMIN") {
+      return res.status(400).json({ error: "Você não pode remover sua própria permissão de administrador" });
+    }
+    data.role = role;
+  }
 
   const updated = await prisma.user.update({
     where: { id },
@@ -97,6 +112,26 @@ export async function updateUser(req, res) {
     active: updated.active,
     unit: updated.unit,
   });
+}
+
+// DELETE /api/users/:id — exclui usuário (ADMIN only)
+export async function deleteUser(req, res) {
+  const id = Number(req.params.id);
+
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+
+  if (id === req.user.id) {
+    return res.status(400).json({ error: "Você não pode excluir sua própria conta" });
+  }
+
+  // Não permite excluir outro ADMIN
+  if (user.role === "ADMIN") {
+    return res.status(403).json({ error: "Não é possível excluir um administrador" });
+  }
+
+  await prisma.user.delete({ where: { id } });
+  res.json({ ok: true, message: "Usuário excluído com sucesso" });
 }
 
 // GET /api/monitors — monitores ativos (para exibir no dashboard)
