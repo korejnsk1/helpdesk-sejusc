@@ -9,12 +9,8 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const token = localStorage.getItem("hd_token");
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    api
-      .get("/auth/me")
+    if (!token) { setLoading(false); return; }
+    api.get("/auth/me")
       .then((r) => setUser(r.data))
       .catch(() => localStorage.removeItem("hd_token"))
       .finally(() => setLoading(false));
@@ -32,8 +28,12 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  function refreshUser() {
+    return api.get("/auth/me").then((r) => setUser(r.data));
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );

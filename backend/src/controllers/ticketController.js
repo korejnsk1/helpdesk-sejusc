@@ -75,6 +75,7 @@ export async function createTicket(req, res) {
       subcategoryId: (!isRemote && !category.allowsFreeText) ? data.subcategoryId : null,
       freeTextDescription: (!isRemote && category.allowsFreeText) ? data.freeTextDescription.trim() : null,
       anyDeskCode: isRemote ? data.anyDeskCode.trim() : null,
+      openedById: req.user?.id ?? null,
       status: STATUS.OPEN,
       history: {
         create: { toStatus: STATUS.OPEN },

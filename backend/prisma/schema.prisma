@@ -11,6 +11,7 @@ enum Role {
   ADMIN
   MONITOR
   TECHNICIAN
+  USER
 }
 
 enum TicketStatus {
@@ -27,6 +28,7 @@ model Department {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   tickets   Ticket[]
+  users     User[]   @relation("UserDepartment")
 }
 
 model Unit {
@@ -39,28 +41,34 @@ model Unit {
 }
 
 model User {
-  id           Int        @id @default(autoincrement())
-  cpf          String     @unique
-  name         String
-  passwordHash String
-  role         Role       @default(TECHNICIAN)
-  active       Boolean    @default(true)
-  unitId       Int?
-  unit         Unit?      @relation(fields: [unitId], references: [id])
-  createdAt    DateTime   @default(now())
-  assignedTickets Ticket[] @relation("AssignedTechnician")
-  history      TicketHistory[]
+  id                 Int        @id @default(autoincrement())
+  cpf                String     @unique
+  name               String
+  passwordHash       String
+  role               Role       @default(USER)
+  active             Boolean    @default(true)
+  unitId             Int?
+  unit               Unit?      @relation(fields: [unitId], references: [id])
+  departmentId       Int?
+  department         Department? @relation("UserDepartment", fields: [departmentId], references: [id])
+  mustChangePassword Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  assignedTickets    Ticket[]   @relation("AssignedTechnician")
+  openedTickets      Ticket[]   @relation("TicketOpener")
+  history            TicketHistory[]
+
+  @@index([departmentId])
 }
 
 model Category {
-  id            Int           @id @default(autoincrement())
-  code          String        @unique
-  name          String
-  icon          String?
-  sortOrder     Int           @default(0)
-  allowsFreeText Boolean      @default(false)
-  subcategories Subcategory[]
-  tickets       Ticket[]
+  id             Int           @id @default(autoincrement())
+  code           String        @unique
+  name           String
+  icon           String?
+  sortOrder      Int           @default(0)
+  allowsFreeText Boolean       @default(false)
+  subcategories  Subcategory[]
+  tickets        Ticket[]
 }
 
 model Subcategory {
@@ -72,52 +80,55 @@ model Subcategory {
 }
 
 model Ticket {
-  id              Int          @id @default(autoincrement())
-  ticketNumber    String       @unique
-  requesterName   String
-  requesterCpf    String
-  department      String
-  departmentId    Int?
-  departmentRef   Department?  @relation(fields: [departmentId], references: [id])
-  categoryId      Int
-  category        Category     @relation(fields: [categoryId], references: [id])
-  subcategoryId   Int?
-  subcategory     Subcategory? @relation(fields: [subcategoryId], references: [id])
-  freeTextDescription String?  @db.Text
-  status          TicketStatus @default(OPEN)
-  unitId          Int?
-  unit            Unit?        @relation(fields: [unitId], references: [id])
-  assignedTechId  Int?
-  assignedTech    User?        @relation("AssignedTechnician", fields: [assignedTechId], references: [id])
-  anyDeskCode     String?
-  cause           String?      @db.Text
-  solution        String?      @db.Text
-  openedAt        DateTime     @default(now())
-  viewedAt        DateTime?
-  enRouteAt       DateTime?
-  inServiceAt     DateTime?
-  completedAt     DateTime?
-  glpiExportedAt  DateTime?
-  glpiTicketId    Int?
-  history         TicketHistory[]
-  feedback        Feedback?
+  id                  Int          @id @default(autoincrement())
+  ticketNumber        String       @unique
+  requesterName       String
+  requesterCpf        String
+  department          String
+  departmentId        Int?
+  departmentRef       Department?  @relation(fields: [departmentId], references: [id])
+  categoryId          Int
+  category            Category     @relation(fields: [categoryId], references: [id])
+  subcategoryId       Int?
+  subcategory         Subcategory? @relation(fields: [subcategoryId], references: [id])
+  freeTextDescription String?      @db.Text
+  status              TicketStatus @default(OPEN)
+  unitId              Int?
+  unit                Unit?        @relation(fields: [unitId], references: [id])
+  assignedTechId      Int?
+  assignedTech        User?        @relation("AssignedTechnician", fields: [assignedTechId], references: [id])
+  openedById          Int?
+  openedBy            User?        @relation("TicketOpener", fields: [openedById], references: [id])
+  anyDeskCode         String?
+  cause               String?      @db.Text
+  solution            String?      @db.Text
+  openedAt            DateTime     @default(now())
+  viewedAt            DateTime?
+  enRouteAt           DateTime?
+  inServiceAt         DateTime?
+  completedAt         DateTime?
+  glpiExportedAt      DateTime?
+  glpiTicketId        Int?
+  history             TicketHistory[]
+  feedback            Feedback?
 
   @@index([status])
   @@index([unitId])
   @@index([assignedTechId])
+  @@index([openedById])
   @@index([openedAt])
 }
 
 model TicketHistory {
-  id         Int          @id @default(autoincrement())
-  ticketId   Int
-  ticket     Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  fromStatus TicketStatus?
-  toStatus   TicketStatus
-  actorId    Int?
-  actor      User?        @relation(fields: [actorId], references: [id])
-  internalNote String?    @db.Text
-  createdAt  DateTime     @default(now())
+  id           Int          @id @default(autoincrement())
+  ticketId     Int
+  ticket       Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus   TicketStatus?
+  toStatus     TicketStatus
+  actorId      Int?
+  actor        User?        @relation(fields: [actorId], references: [id])
+  internalNote String?      @db.Text
+  createdAt    DateTime     @default(now())
 
   @@index([ticketId])
 }

@@ -13,6 +13,20 @@ export function authRequired(req, res, next) {
   }
 }
 
+// Tenta decodificar o token mas não falha se ausente
+export function optionalAuth(req, res, next) {
+  const header = req.headers.authorization || "";
+  const [, token] = header.split(" ");
+  if (token) {
+    try {
+      req.user = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      // token inválido — ignora
+    }
+  }
+  next();
+}
+
 export function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {

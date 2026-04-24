@@ -31,7 +31,7 @@ async function main() {
         "Monitor sem imagem",
         "Teclado/Mouse com defeito",
         "Cabo/Conexão",
-        "Outro hardware",
+        "Outro",
       ],
     },
     {

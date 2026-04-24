@@ -90,8 +90,9 @@ export default function LoginPage() {
             to="/cadastro"
             className="text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-medium transition"
           >
-            Primeiro acesso? Solicitar cadastro
+            Primeiro acesso? Criar conta
           </Link>
+          <Link to="/esqueci-senha" className="text-sm text-slate-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition">Esqueci minha senha</Link>
           <Link
             to="/"
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition"

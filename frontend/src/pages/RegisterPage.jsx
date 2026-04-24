@@ -4,19 +4,20 @@ import { api } from "../lib/api";
 import { maskCpf, isValidCpf, stripCpf } from "../lib/cpf";
 import { Alert, Spinner } from "../components/ui";
 import { useTheme } from "../context/ThemeContext";
-import { UserPlus, ArrowLeft, CheckCircle2, Sun, Moon } from "lucide-react";
+import { UserPlus, ArrowLeft, CheckCircle2, Sun, Moon, Eye, EyeOff } from "lucide-react";
 
 export default function RegisterPage() {
   const nav = useNavigate();
   const { dark, toggle } = useTheme();
-  const [units, setUnits] = useState([]);
-  const [form, setForm] = useState({ name: "", cpf: "", password: "", confirmPassword: "", unitId: "" });
+  const [departments, setDepartments] = useState([]);
+  const [form, setForm] = useState({ name: "", cpf: "", departmentId: "", password: "", confirmPassword: "" });
+  const [showPwd, setShowPwd] = useState(false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    api.get("/units").then((r) => setUnits(r.data));
+    api.get("/departments").then((r) => setDepartments(r.data));
   }, []);
 
   const cpfValid = isValidCpf(form.cpf);
@@ -24,9 +25,9 @@ export default function RegisterPage() {
   const canSubmit =
     form.name.trim().length >= 3 &&
     cpfValid &&
+    form.departmentId &&
     form.password.length >= 6 &&
-    passMatch &&
-    form.unitId;
+    passMatch;
 
   async function submit(e) {
     e.preventDefault();
@@ -36,8 +37,8 @@ export default function RegisterPage() {
       await api.post("/auth/register", {
         name: form.name.trim(),
         cpf: stripCpf(form.cpf),
+        departmentId: Number(form.departmentId),
         password: form.password,
-        unitId: Number(form.unitId),
       });
       setSuccess(true);
     } catch (ex) {
@@ -55,14 +56,14 @@ export default function RegisterPage() {
             <CheckCircle2 size={28} />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-gray-100">Cadastro enviado!</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-gray-100">Conta criada!</h2>
             <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
-              Sua solicitação foi registrada. O monitor de plantão precisa aprovar seu acesso antes que você possa entrar no sistema.
+              Seu acesso está pronto. Faça login para continuar.
             </p>
           </div>
-          <Link to="/login" className="btn-primary w-full justify-center">
-            Ir para o login
-          </Link>
+          <button onClick={() => nav("/login")} className="btn-primary w-full justify-center">
+            Fazer login
+          </button>
         </div>
       </div>
     );
@@ -70,8 +71,6 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-4">
-
-      {/* Botão de tema — canto superior direito */}
       <button
         onClick={toggle}
         title={dark ? "Modo claro" : "Modo escuro"}
@@ -81,18 +80,17 @@ export default function RegisterPage() {
       </button>
 
       <div className="w-full max-w-sm">
-
-        {/* Brand */}
         <div className="flex flex-col items-center mb-8">
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white text-lg font-bold shadow-card-md mb-3">
             HD
           </span>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-gray-100">Cadastro de técnico</h1>
-          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Preencha para solicitar acesso ao sistema</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-gray-100">Criar conta</h1>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
+            HelpDesk SEJUSC
+          </p>
         </div>
 
         <form onSubmit={submit} className="card p-6 space-y-4">
-
           <div>
             <label className="field-label">Nome completo</label>
             <input
@@ -119,28 +117,43 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="field-label">Unidade / Setor</label>
-            <select
-              className="field-input"
-              value={form.unitId}
-              onChange={(e) => setForm({ ...form, unitId: e.target.value })}
-            >
-              <option value="">Selecione sua unidade...</option>
-              {units.map((u) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
+            <label className="field-label">Setor / Departamento</label>
+            {departments.length === 0 ? (
+              <div className="field-input flex items-center gap-2 text-slate-400 dark:text-gray-500">
+                <Spinner className="h-4 w-4" /> Carregando setores...
+              </div>
+            ) : (
+              <select
+                className="field-input"
+                value={form.departmentId}
+                onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+              >
+                <option value="">Selecione seu setor...</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
             <label className="field-label">Senha</label>
-            <input
-              type="password"
-              placeholder="Mínimo 6 caracteres"
-              className="field-input"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
+            <div className="relative">
+              <input
+                type={showPwd ? "text" : "password"}
+                placeholder="Mínimo 6 caracteres"
+                className="field-input pr-10"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-gray-300 transition"
+              >
+                {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           <div>
@@ -161,17 +174,17 @@ export default function RegisterPage() {
 
           <button type="submit" disabled={!canSubmit || loading} className="btn-primary w-full py-2.5">
             {loading ? <Spinner className="h-4 w-4" /> : <UserPlus size={16} />}
-            {loading ? "Enviando..." : "Solicitar acesso"}
+            {loading ? "Criando conta..." : "Criar conta"}
           </button>
         </form>
 
-        <div className="mt-5 text-center">
+        <div className="mt-5 text-center space-y-2">
           <Link
             to="/login"
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition"
           >
             <ArrowLeft size={14} />
-            Já tenho acesso — fazer login
+            Já tenho conta — fazer login
           </Link>
         </div>
       </div>
