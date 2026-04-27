@@ -4,23 +4,11 @@ import bcrypt from "bcrypt";
 const prisma = new PrismaClient();
 
 async function main() {
-  // ── Setores (Departamentos) ──────────────────────────────────────────────
+  // ── Setores de TI (únicos pré-criados; demais são criados pelo admin) ────
   const departments = [
-    "Gabinete",
-    "Assessoria Jurídica",
-    "Assessoria de Comunicação",
-    "Subsecretaria de Administração e Finanças",
-    "Subsecretaria de Políticas Penais",
-    "Subsecretaria de Alternativas Penais",
-    "Subsecretaria de Políticas para Drogas",
     "Núcleo de Suporte de Sistemas (NSS)",
     "Núcleo de Infraestrutura de Redes (NIR)",
     "Núcleo de Manutenção Técnica (NMT)",
-    "Coordenadoria de Gestão de Pessoas",
-    "Coordenadoria de Compras e Contratos",
-    "Coordenadoria de Planejamento",
-    "CEAPA",
-    "CEAD",
   ];
   for (const name of departments) {
     await prisma.department.upsert({
