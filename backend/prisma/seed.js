@@ -4,6 +4,32 @@ import bcrypt from "bcrypt";
 const prisma = new PrismaClient();
 
 async function main() {
+  // ── Setores (Departamentos) ──────────────────────────────────────────────
+  const departments = [
+    "Gabinete",
+    "Assessoria Jurídica",
+    "Assessoria de Comunicação",
+    "Subsecretaria de Administração e Finanças",
+    "Subsecretaria de Políticas Penais",
+    "Subsecretaria de Alternativas Penais",
+    "Subsecretaria de Políticas para Drogas",
+    "Núcleo de Suporte de Sistemas (NSS)",
+    "Núcleo de Infraestrutura de Redes (NIR)",
+    "Núcleo de Manutenção Técnica (NMT)",
+    "Coordenadoria de Gestão de Pessoas",
+    "Coordenadoria de Compras e Contratos",
+    "Coordenadoria de Planejamento",
+    "CEAPA",
+    "CEAD",
+  ];
+  for (const name of departments) {
+    await prisma.department.upsert({
+      where: { name },
+      create: { name, active: true },
+      update: { active: true },
+    });
+  }
+
   // ── Unidades ────────────────────────────────────────────────────────────
   const units = [
     { name: "NSS - Núcleo de Suporte de Sistemas", description: "Tecnologia da Informação" },
@@ -110,6 +136,9 @@ async function main() {
   const nss = await prisma.unit.findUnique({
     where: { name: "NSS - Núcleo de Suporte de Sistemas" },
   });
+  const nssDept = await prisma.department.findFirst({
+    where: { name: { contains: "NSS" } },
+  });
 
   await prisma.user.upsert({
     where: { cpf: adminCpf },
@@ -120,10 +149,13 @@ async function main() {
       role: "ADMIN",
       active: true,
       unitId: nss?.id || null,
+      departmentId: nssDept?.id || null,
     },
     update: {
       role: "ADMIN",
       active: true,
+      unitId: nss?.id || null,
+      departmentId: nssDept?.id || null,
     },
   });
 

@@ -4,24 +4,63 @@ import AppHeader from "../components/AppHeader";
 import { Spinner } from "../components/ui";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
+  PieChart, Pie, Legend, AreaChart, Area,
 } from "recharts";
-import { Calendar } from "lucide-react";
+import { Calendar, BarChart2, PieChart as PieChartIcon, TrendingUp } from "lucide-react";
 
-const BLUE_SHADES = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe"];
+const PALETTE = [
+  "#2563eb", "#7c3aed", "#059669", "#d97706", "#dc2626",
+  "#0891b2", "#9333ea", "#16a34a", "#ea580c", "#0284c7",
+];
 
-function ChartCard({ title, data, xKey, yKey = "total", loading }) {
+function TypeToggle({ type, onChange }) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 dark:bg-gray-800 p-0.5">
+      <button
+        onClick={() => onChange("bar")}
+        title="Barras"
+        className={`rounded-md p-1.5 transition ${
+          type === "bar"
+            ? "bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400"
+            : "text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+        }`}
+      >
+        <BarChart2 size={13} />
+      </button>
+      <button
+        onClick={() => onChange("pie")}
+        title="Pizza"
+        className={`rounded-md p-1.5 transition ${
+          type === "pie"
+            ? "bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400"
+            : "text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+        }`}
+      >
+        <PieChartIcon size={13} />
+      </button>
+    </div>
+  );
+}
+
+function ChartCard({ title, data, xKey, yKey = "total", loading, onlyBar = false }) {
+  const [type, setType] = useState("bar");
+
   return (
     <div className="card p-5">
-      <h2 className="text-sm font-semibold text-slate-800 mb-4">{title}</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100">{title}</h2>
+        {!onlyBar && <TypeToggle type={type} onChange={setType} />}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center h-40">
           <Spinner />
         </div>
       ) : data.length === 0 ? (
-        <div className="flex items-center justify-center h-40 text-sm text-slate-400">
+        <div className="flex items-center justify-center h-40 text-sm text-slate-400 dark:text-gray-500">
           Sem dados no período
         </div>
-      ) : (
+      ) : type === "bar" ? (
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={data} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -46,9 +85,176 @@ function ChartCard({ title, data, xKey, yKey = "total", loading }) {
             />
             <Bar dataKey={yKey} radius={[6, 6, 0, 0]} maxBarSize={48}>
               {data.map((_, i) => (
-                <Cell key={i} fill={BLUE_SHADES[i % BLUE_SHADES.length]} />
+                <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
               ))}
             </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey={yKey}
+              nameKey={xKey}
+              cx="50%"
+              cy="44%"
+              innerRadius={55}
+              outerRadius={90}
+              paddingAngle={2}
+            >
+              {data.map((_, i) => (
+                <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                border: "none",
+                borderRadius: "12px",
+                boxShadow: "0 4px 12px rgb(0 0 0 / .08)",
+                fontSize: "12px",
+              }}
+            />
+            <Legend
+              iconType="circle"
+              iconSize={8}
+              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+const tooltipStyle = {
+  border: "none",
+  borderRadius: "12px",
+  boxShadow: "0 4px 12px rgb(0 0 0 / .08)",
+  fontSize: "12px",
+};
+
+function DailyChart({ data, loading }) {
+  const [type, setType] = useState("area");
+
+  const fmt = (d) => {
+    const [, m, day] = d.split("-");
+    return `${day}/${m}`;
+  };
+
+  const tickInterval = data.length > 20 ? Math.floor(data.length / 10) : 0;
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp size={15} className="text-brand-600" />
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100">
+            Volume diário de chamados
+          </h2>
+        </div>
+        <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 dark:bg-gray-800 p-0.5">
+          <button
+            onClick={() => setType("area")}
+            title="Área"
+            className={`rounded-md p-1.5 transition ${
+              type === "area"
+                ? "bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400"
+                : "text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+            }`}
+          >
+            <TrendingUp size={13} />
+          </button>
+          <button
+            onClick={() => setType("bar")}
+            title="Barras"
+            className={`rounded-md p-1.5 transition ${
+              type === "bar"
+                ? "bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400"
+                : "text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+            }`}
+          >
+            <BarChart2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-48"><Spinner /></div>
+      ) : data.length === 0 ? (
+        <div className="flex items-center justify-center h-48 text-sm text-slate-400 dark:text-gray-500">
+          Sem dados no período
+        </div>
+      ) : type === "area" ? (
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+            <defs>
+              <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis
+              dataKey="date"
+              tickFormatter={fmt}
+              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tickLine={false}
+              axisLine={false}
+              interval={tickInterval}
+            />
+            <YAxis
+              allowDecimals={false}
+              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              labelFormatter={(d) => {
+                const [y, m, day] = d.split("-");
+                return `${day}/${m}/${y}`;
+              }}
+              formatter={(v) => [v, "Chamados"]}
+            />
+            <Area
+              type="monotone"
+              dataKey="total"
+              stroke="#2563eb"
+              strokeWidth={2}
+              fill="url(#areaGrad)"
+              dot={data.length <= 14 ? { r: 3, fill: "#2563eb" } : false}
+              activeDot={{ r: 5 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      ) : (
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis
+              dataKey="date"
+              tickFormatter={fmt}
+              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tickLine={false}
+              axisLine={false}
+              interval={tickInterval}
+            />
+            <YAxis
+              allowDecimals={false}
+              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              labelFormatter={(d) => {
+                const [y, m, day] = d.split("-");
+                return `${day}/${m}/${y}`;
+              }}
+              formatter={(v) => [v, "Chamados"]}
+            />
+            <Bar dataKey="total" radius={[4, 4, 0, 0]} maxBarSize={32} fill="#2563eb" />
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -62,6 +268,7 @@ export default function AnalyticsPage() {
 
   const [range, setRange] = useState({ from: thirtyAgo, to: today });
   const [data, setData] = useState({});
+  const [daily, setDaily] = useState([]);
   const [others, setOthers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,15 +282,19 @@ export default function AnalyticsPage() {
       api.get(`/analytics/by-category${q}`),
       api.get(`/analytics/avg-resolution${q}`),
       api.get(`/analytics/other${q}`),
-    ]).then(([u, t, d, c, a, o]) => {
+      api.get(`/analytics/top-requesters${q}&limit=10`),
+      api.get(`/analytics/by-day${q}`),
+    ]).then(([u, t, d, c, a, o, r, day]) => {
       setData({
         byUnit: u.data,
         byTech: t.data,
         byDept: d.data,
         byCat: c.data,
         avg: a.data,
+        topRequesters: r.data.map((x) => ({ name: x.name, total: x.total })),
       });
       setOthers(o.data);
+      setDaily(day.data);
     }).finally(() => setLoading(false));
   }, [range]);
 
@@ -95,7 +306,7 @@ export default function AnalyticsPage() {
 
         {/* Filtro de período */}
         <div className="card px-5 py-4 flex flex-wrap items-end gap-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-gray-200">
             <Calendar size={16} className="text-brand-600" />
             Período
           </div>
@@ -123,12 +334,16 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
+        {/* Volume diário */}
+        <DailyChart data={daily} loading={loading} />
+
         {/* Grid de gráficos */}
         <div className="grid md:grid-cols-2 gap-5">
           <ChartCard title="Chamados por unidade"    data={data.byUnit  || []} xKey="unit"        loading={loading} />
           <ChartCard title="Chamados por técnico"    data={data.byTech  || []} xKey="technician"  loading={loading} />
           <ChartCard title="Top departamentos"       data={data.byDept  || []} xKey="department"  loading={loading} />
           <ChartCard title="Categorias mais abertas" data={data.byCat   || []} xKey="category"    loading={loading} />
+          <ChartCard title="Mais solicitantes"       data={data.topRequesters || []} xKey="name"  loading={loading} />
         </div>
 
         <ChartCard
@@ -137,30 +352,31 @@ export default function AnalyticsPage() {
           xKey="category"
           yKey="avgMinutes"
           loading={loading}
+          onlyBar
         />
 
         {/* Outros (para reclassificação) */}
         <div className="card p-5">
-          <h2 className="text-sm font-semibold text-slate-800 mb-1">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-1">
             Chamados "Outro" — para reclassificação
           </h2>
-          <p className="text-xs text-slate-500 mb-4">
+          <p className="text-xs text-slate-500 dark:text-gray-400 mb-4">
             Estes chamados foram abertos com descrição livre. O monitor pode usá-los para planejar manutenção preventiva.
           </p>
 
           {loading ? (
             <div className="flex items-center justify-center h-20"><Spinner /></div>
           ) : others.length === 0 ? (
-            <div className="text-sm text-slate-400 text-center py-6">Nenhum chamado no período</div>
+            <div className="text-sm text-slate-400 dark:text-gray-500 text-center py-6">Nenhum chamado no período</div>
           ) : (
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {others.map((o) => (
-                <div key={o.id} className="rounded-xl border border-slate-200 px-4 py-3">
+                <div key={o.id} className="rounded-xl border border-slate-200 dark:border-gray-700 px-4 py-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-mono text-slate-500">{o.ticketNumber}</span>
-                    <span className="text-xs text-slate-400">{o.category?.name}</span>
+                    <span className="text-xs font-mono text-slate-500 dark:text-gray-400">{o.ticketNumber}</span>
+                    <span className="text-xs text-slate-400 dark:text-gray-500">{o.category?.name}</span>
                   </div>
-                  <p className="text-sm text-slate-700 line-clamp-2">{o.freeTextDescription}</p>
+                  <p className="text-sm text-slate-700 dark:text-gray-300 line-clamp-2">{o.freeTextDescription}</p>
                 </div>
               ))}
             </div>

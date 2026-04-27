@@ -30,7 +30,7 @@ function Protected({ children, adminOnly = false, staffOnly = false }) {
     </div>
   );
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to={`/login${loc.pathname !== "/" ? `?next=${encodeURIComponent(loc.pathname)}` : ""}`} replace />;
 
   // Troca de senha obrigatória
   if (user.mustChangePassword && loc.pathname !== "/trocar-senha") {
@@ -56,7 +56,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Routes>
             {/* Público */}
             <Route path="/" element={<HomePage />} />
-            <Route path="/novo-chamado" element={<NewTicketPage />} />
+            <Route path="/novo-chamado" element={<Protected><NewTicketPage /></Protected>} />
             <Route path="/acompanhar/:ticketNumber" element={<TrackPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/cadastro" element={<RegisterPage />} />

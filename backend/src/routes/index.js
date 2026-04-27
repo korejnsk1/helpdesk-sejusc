@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, me } from "../controllers/authController.js";
+import { login, me, forgotPassword } from "../controllers/authController.js";
 import {
   register, listUsers, updateUser, deleteUser, listMonitors,
   resetPassword, changePassword, myTickets,
@@ -18,6 +18,7 @@ import {
 import {
   ticketsByUnit, ticketsByTechnician, ticketsByDepartment,
   ticketsByCategory, avgResolutionByCategory, otherReclassified,
+  topRequesters, ticketsByDay,
 } from "../controllers/analyticsController.js";
 import { authRequired, optionalAuth, requireRole } from "../middleware/auth.js";
 
@@ -28,14 +29,15 @@ router.get("/config",    getPublicConfig);
 router.get("/categories", listCategories);
 router.get("/units",     listUnits);
 router.get("/departments", listDepartments);
-router.post("/tickets",  optionalAuth, createTicket);
+router.post("/tickets",  authRequired, createTicket);
 router.get("/tickets/track/:ticketNumber", getTicketPublic);
 router.post("/tickets/track/:ticketNumber/feedback", submitFeedback);
 
 // ── Autenticação ──────────────────────────────────────────────────────────────
-router.post("/auth/login",    login);
-router.post("/auth/register", register);
-router.get("/auth/me",        authRequired, me);
+router.post("/auth/login",           login);
+router.post("/auth/register",        register);
+router.post("/auth/forgot-password", forgotPassword);
+router.get("/auth/me",               authRequired, me);
 router.post("/auth/change-password", authRequired, changePassword);
 
 // ── Monitores (público — exibição no dashboard/login) ─────────────────────────
@@ -64,11 +66,14 @@ router.post("/tickets/:id/transition", authRequired, requireRole("MONITOR", "ADM
 router.delete("/tickets/:id", authRequired, requireRole("ADMIN"), deleteTicket);
 
 // ── Analytics ──────────────────────────────────────────────────────────────────
-router.get("/analytics/by-unit",        authRequired, ticketsByUnit);
-router.get("/analytics/by-technician",  authRequired, ticketsByTechnician);
-router.get("/analytics/by-department",  authRequired, ticketsByDepartment);
-router.get("/analytics/by-category",    authRequired, ticketsByCategory);
-router.get("/analytics/avg-resolution", authRequired, avgResolutionByCategory);
-router.get("/analytics/other",          authRequired, otherReclassified);
+const analyticsAccess = [authRequired, requireRole("TECHNICIAN", "MONITOR", "ADMIN")];
+router.get("/analytics/by-unit",        ...analyticsAccess, ticketsByUnit);
+router.get("/analytics/by-technician",  ...analyticsAccess, ticketsByTechnician);
+router.get("/analytics/by-department",  ...analyticsAccess, ticketsByDepartment);
+router.get("/analytics/by-category",    ...analyticsAccess, ticketsByCategory);
+router.get("/analytics/avg-resolution", ...analyticsAccess, avgResolutionByCategory);
+router.get("/analytics/other",          ...analyticsAccess, otherReclassified);
+router.get("/analytics/top-requesters", ...analyticsAccess, topRequesters);
+router.get("/analytics/by-day",         ...analyticsAccess, ticketsByDay);
 
 export default router;

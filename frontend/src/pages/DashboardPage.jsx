@@ -31,8 +31,10 @@ export default function DashboardPage() {
 
   async function load() {
     try {
-      const { data } = await api.get("/tickets");
-      setTickets(data);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const { data } = await api.get("/tickets", { params: { from: today.toISOString() } });
+      setTickets(data.tickets);
       setLastUpdated(new Date());
     } finally {
       setLoading(false);
@@ -253,3 +255,4 @@ function statusColor(s) {
     COMPLETED:  "bg-emerald-500",
   }[s] || "bg-slate-300";
 }
+

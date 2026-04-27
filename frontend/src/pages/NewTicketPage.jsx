@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-import { maskCpf, isValidCpf, stripCpf } from "../lib/cpf";
+import { useAuth } from "../context/AuthContext";
 import { Alert, Spinner } from "../components/ui";
 import {
   ArrowLeft, ArrowRight, Monitor, Wifi, KeyRound, HelpCircle,
-  CheckCircle2, MonitorSmartphone, Copy, Check as CheckIcon,
+  CheckCircle2, MonitorSmartphone, Copy, Check as CheckIcon, ChevronDown,
 } from "lucide-react";
 
 const CATEGORY_ICONS = {
@@ -24,17 +24,16 @@ const CATEGORY_COLORS = {
   REMOTE:   "bg-cyan-50    dark:bg-cyan-900/30    text-cyan-600    dark:text-cyan-400    border-cyan-200    dark:border-cyan-700",
 };
 
-const STEPS = ["Seus dados", "Tipo do problema", "Detalhes"];
+const STEPS = ["Tipo do problema", "Detalhes"];
 
 export default function NewTicketPage() {
   const nav = useNavigate();
+  const { user } = useAuth();
   const [categories, setCategories] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    requesterName: "",
     departmentId: "",
-    requesterCpf: "",
     categoryId: null,
     subcategoryId: null,
     freeTextDescription: "",
@@ -42,29 +41,28 @@ export default function NewTicketPage() {
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [createdTicket, setCreatedTicket] = useState(null); // { ticketNumber, isRemote }
+  const [createdTicket, setCreatedTicket] = useState(null);
 
   useEffect(() => {
     api.get("/categories").then((r) => setCategories(r.data));
-    api.get("/departments").then((r) => setDepartments(r.data));
-  }, []);
+    api.get("/departments").then((r) => {
+      setDepartments(r.data);
+      // Pré-preenche o setor do usuário logado
+      if (user?.department?.id) {
+        setForm((f) => ({ ...f, departmentId: String(user.department.id) }));
+      }
+    });
+  }, [user]);
 
   const selectedCategory = categories.find((c) => c.id === form.categoryId);
   const isRemote = selectedCategory?.code === "REMOTE";
-
-  const canStep1 =
-    form.requesterName.trim().length >= 3 &&
-    !!form.departmentId &&
-    isValidCpf(form.requesterCpf);
 
   async function submit() {
     setError("");
     setSubmitting(true);
     try {
       const payload = {
-        requesterName: form.requesterName.trim(),
-        departmentId: Number(form.departmentId),
-        requesterCpf: stripCpf(form.requesterCpf),
+        departmentId: Number(form.departmentId) || null,
         categoryId: form.categoryId,
         subcategoryId: selectedCategory?.allowsFreeText || isRemote ? null : form.subcategoryId,
         freeTextDescription: selectedCategory?.allowsFreeText && !isRemote ? form.freeTextDescription : null,
@@ -124,6 +122,37 @@ export default function NewTicketPage() {
       </header>
 
       <main className="flex-1 p-4 md:p-8 max-w-2xl w-full mx-auto">
+
+        {/* Identidade do solicitante */}
+        <div className="mb-5 rounded-xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-slate-500 dark:text-gray-400">Chamado aberto por</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-gray-100 truncate">{user?.name}</p>
+          </div>
+          <div className="sm:w-56">
+            <label className="text-xs text-slate-500 dark:text-gray-400 block mb-1">Setor solicitante</label>
+            {departments.length === 0 ? (
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-gray-500">
+                <Spinner className="h-3.5 w-3.5" /> Carregando...
+              </div>
+            ) : (
+              <div className="relative">
+                <select
+                  className="field-input text-sm pr-8 appearance-none"
+                  value={form.departmentId}
+                  onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+                >
+                  <option value="">Selecione...</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-6">
           {STEPS.map((label, idx) => {
@@ -154,67 +183,8 @@ export default function NewTicketPage() {
 
         <div className="card p-6">
 
-          {/* ── STEP 1: Dados do solicitante ── */}
+          {/* ── STEP 1: Tipo do problema ── */}
           {step === 1 && (
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900 dark:text-gray-100">Seus dados</h2>
-                <p className="text-sm text-slate-500 dark:text-gray-400 mt-0.5">Preencha para identificar o chamado</p>
-              </div>
-
-              <div>
-                <label className="field-label">Nome completo</label>
-                <input
-                  className="field-input"
-                  placeholder="Seu nome completo"
-                  value={form.requesterName}
-                  onChange={(e) => setForm({ ...form, requesterName: e.target.value })}
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="field-label">Setor / Departamento</label>
-                {departments.length === 0 ? (
-                  <div className="field-input flex items-center gap-2 text-slate-400 dark:text-gray-500">
-                    <Spinner className="h-4 w-4" /> Carregando setores...
-                  </div>
-                ) : (
-                  <select
-                    className="field-input"
-                    value={form.departmentId}
-                    onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-                  >
-                    <option value="">Selecione seu setor...</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div>
-                <label className="field-label">CPF</label>
-                <input
-                  inputMode="numeric"
-                  placeholder="000.000.000-00"
-                  className="field-input"
-                  value={form.requesterCpf}
-                  onChange={(e) => setForm({ ...form, requesterCpf: maskCpf(e.target.value) })}
-                />
-                {form.requesterCpf.length >= 11 && !isValidCpf(form.requesterCpf) && (
-                  <p className="mt-1 text-xs text-red-500 dark:text-red-400">CPF inválido</p>
-                )}
-              </div>
-
-              <button disabled={!canStep1} onClick={() => setStep(2)} className="btn-primary w-full py-3">
-                Continuar <ArrowRight size={16} />
-              </button>
-            </div>
-          )}
-
-          {/* ── STEP 2: Tipo do problema ── */}
-          {step === 2 && (
             <div className="space-y-4">
               <div>
                 <h2 className="text-base font-semibold text-slate-900 dark:text-gray-100">Tipo do problema</h2>
@@ -222,7 +192,6 @@ export default function NewTicketPage() {
               </div>
 
               <div className="space-y-2">
-                {/* Categorias comuns */}
                 {categories.filter((c) => c.code !== "REMOTE").map((c) => {
                   const Icon = CATEGORY_ICONS[c.code] || HelpCircle;
                   const colorClass = CATEGORY_COLORS[c.code] || CATEGORY_COLORS.OTHER;
@@ -257,7 +226,6 @@ export default function NewTicketPage() {
                   );
                 })}
 
-                {/* Divisor */}
                 {categories.some((c) => c.code === "REMOTE") && (
                   <div className="flex items-center gap-3 py-1">
                     <div className="flex-1 h-px bg-slate-200 dark:bg-gray-700" />
@@ -266,7 +234,6 @@ export default function NewTicketPage() {
                   </div>
                 )}
 
-                {/* Atendimento remoto — destaque especial */}
                 {categories.filter((c) => c.code === "REMOTE").map((c) => {
                   const selected = form.categoryId === c.id;
                   return (
@@ -300,19 +267,18 @@ export default function NewTicketPage() {
                 })}
               </div>
 
-              <div className="flex gap-2 pt-1">
-                <button onClick={() => setStep(1)} className="btn-secondary flex-1">
-                  <ArrowLeft size={16} /> Voltar
-                </button>
-                <button disabled={!form.categoryId} onClick={() => setStep(3)} className="btn-primary flex-1">
-                  Continuar <ArrowRight size={16} />
-                </button>
-              </div>
+              <button
+                disabled={!form.categoryId || !form.departmentId}
+                onClick={() => setStep(2)}
+                className="btn-primary w-full py-3"
+              >
+                {!form.departmentId ? "Selecione o setor antes de continuar" : "Continuar"} <ArrowRight size={16} />
+              </button>
             </div>
           )}
 
-          {/* ── STEP 3: Detalhes ── */}
-          {step === 3 && selectedCategory && (
+          {/* ── STEP 2: Detalhes ── */}
+          {step === 2 && selectedCategory && (
             <div className="space-y-4">
               <div>
                 <h2 className="text-base font-semibold text-slate-900 dark:text-gray-100">{selectedCategory.name}</h2>
@@ -325,7 +291,6 @@ export default function NewTicketPage() {
                 </p>
               </div>
 
-              {/* ── Fluxo AnyDesk ── */}
               {isRemote && (
                 <AnyDeskStep
                   value={form.anyDeskCode}
@@ -333,7 +298,6 @@ export default function NewTicketPage() {
                 />
               )}
 
-              {/* ── Texto livre ── */}
               {!isRemote && selectedCategory.allowsFreeText && (
                 <div>
                   <label className="field-label">Descrição do problema</label>
@@ -351,7 +315,6 @@ export default function NewTicketPage() {
                 </div>
               )}
 
-              {/* ── Subcategorias ── */}
               {!isRemote && !selectedCategory.allowsFreeText && (
                 <div className="space-y-2">
                   {selectedCategory.subcategories.map((s) => {
@@ -382,7 +345,7 @@ export default function NewTicketPage() {
               <Alert message={error} />
 
               <div className="flex gap-2 pt-1">
-                <button onClick={() => setStep(2)} className="btn-secondary flex-1">
+                <button onClick={() => setStep(1)} className="btn-secondary flex-1">
                   <ArrowLeft size={16} /> Voltar
                 </button>
                 <button
@@ -410,11 +373,9 @@ export default function NewTicketPage() {
   );
 }
 
-// ── Componente do step AnyDesk ─────────────────────────────────────────────
 function AnyDeskStep({ value, onChange }) {
   return (
     <div className="space-y-4">
-      {/* Instruções */}
       <div className="rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 p-4 space-y-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-cyan-800 dark:text-cyan-300">
           <MonitorSmartphone size={16} />
@@ -426,8 +387,6 @@ function AnyDeskStep({ value, onChange }) {
           <li>3. Copie e cole o número abaixo</li>
         </ol>
       </div>
-
-      {/* Campo do código */}
       <div>
         <label className="field-label">Seu código AnyDesk</label>
         <input
@@ -443,88 +402,61 @@ function AnyDeskStep({ value, onChange }) {
           Apenas números, como exibido no AnyDesk
         </p>
       </div>
-
-      {/* Aviso */}
       <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-4 py-3 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
         <span className="text-base shrink-0 mt-0.5">⚠️</span>
-        <span>
-          Ao abrir este chamado, deixe o AnyDesk aberto e aceite a solicitação
-          de conexão assim que o técnico entrar em contato.
-        </span>
+        <span>Ao abrir este chamado, deixe o AnyDesk aberto e aceite a solicitação de conexão assim que o técnico entrar em contato.</span>
       </div>
     </div>
   );
 }
 
-// ── Tela de sucesso para atendimento remoto ────────────────────────────────
 function RemoteSuccessScreen({ ticketNumber }) {
   const [copied, setCopied] = useState(false);
-
   function copyProtocol() {
     navigator.clipboard.writeText(ticketNumber);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
-
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950 flex items-center justify-center p-4">
       <div className="card w-full max-w-md p-8 space-y-6 text-center">
-
-        {/* Ícone de sucesso */}
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600 dark:text-cyan-400 mx-auto">
           <MonitorSmartphone size={32} />
         </div>
-
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-gray-100">Chamado aberto!</h2>
           <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Atendimento remoto via AnyDesk</p>
         </div>
-
-        {/* Protocolo */}
         <div className="rounded-xl bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-700 px-4 py-3">
           <div className="text-xs text-slate-500 dark:text-gray-400 mb-1">Protocolo</div>
           <div className="flex items-center justify-center gap-2">
             <span className="font-mono font-bold text-slate-800 dark:text-gray-100 text-lg">{ticketNumber}</span>
             <button
               onClick={copyProtocol}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition"
-              title="Copiar protocolo"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition"
             >
               {copied ? <CheckIcon size={14} className="text-emerald-500" /> : <Copy size={14} />}
             </button>
           </div>
         </div>
-
-        {/* Alerta AnyDesk */}
         <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 p-4 text-left space-y-2">
           <div className="flex items-center gap-2 font-semibold text-amber-800 dark:text-amber-300 text-sm">
             <span className="text-lg">🔔</span>
             Fique de olho no AnyDesk!
           </div>
           <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-            O técnico vai enviar uma solicitação de conexão pelo AnyDesk em breve.
-            Mantenha o aplicativo <strong>aberto</strong> e clique em{" "}
+            O técnico vai enviar uma solicitação de conexão em breve. Mantenha o AnyDesk <strong>aberto</strong> e clique em{" "}
             <strong className="text-amber-800 dark:text-amber-300">Aceitar</strong> quando a notificação aparecer.
           </p>
         </div>
-
-        {/* Aviso de segurança */}
         <p className="text-xs text-slate-400 dark:text-gray-500">
           🔒 Apenas aceite conexões de técnicos da GTI/SEJUSC que você conheça.
-          Em caso de dúvida, ligue para o suporte antes de aceitar.
         </p>
-
         <div className="flex flex-col gap-2">
-          <Link
-            to={`/acompanhar/${ticketNumber}`}
-            className="btn-primary w-full justify-center"
-          >
+          <Link to={`/acompanhar/${ticketNumber}`} className="btn-primary w-full justify-center">
             Acompanhar chamado
           </Link>
-          <Link
-            to="/"
-            className="text-sm text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition"
-          >
+          <Link to="/" className="text-sm text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition">
             Voltar ao início
           </Link>
         </div>

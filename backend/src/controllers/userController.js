@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
 import { stripCpf, isValidCpf, maskCpf } from "../utils/cpf.js";
+import { toTitleCase } from "../utils/name.js";
 
 const registerSchema = z.object({
   name:        z.string().min(3, "Nome muito curto"),
@@ -34,7 +35,7 @@ export async function register(req, res) {
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.create({
     data: {
-      name: name.trim(),
+      name: toTitleCase(name),
       cpf: cleanCpf,
       passwordHash,
       role: "USER",

@@ -1,15 +1,41 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { maskCpf, isValidCpf } from "../lib/cpf";
+import { Link, useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
+import { maskCpf, isValidCpf, stripCpf } from "../lib/cpf";
 import { useTheme } from "../context/ThemeContext";
-import { ArrowLeft, Sun, Moon, KeyRound, ShieldAlert } from "lucide-react";
+import { Alert, Spinner } from "../components/ui";
+import { ArrowLeft, Sun, Moon, KeyRound, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
+  const nav = useNavigate();
   const { dark, toggle } = useTheme();
-  const [cpf, setCpf] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [step, setStep] = useState(1); // 1=form 2=success
+  const [form, setForm] = useState({ cpf: "", name: "" });
+  const [tempPassword, setTempPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const cpfValid = isValidCpf(cpf);
+  const cpfValid = isValidCpf(form.cpf);
+  const canSubmit = cpfValid && form.name.trim().length >= 3;
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr("");
+    setLoading(true);
+    try {
+      const { data } = await api.post("/auth/forgot-password", {
+        cpf: stripCpf(form.cpf),
+        name: form.name.trim(),
+      });
+      setTempPassword(data.tempPassword);
+      setStep(2);
+    } catch (ex) {
+      setErr(ex.response?.data?.error || "Não foi possível redefinir a senha");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-4">
@@ -30,56 +56,82 @@ export default function ForgotPasswordPage() {
           <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">HelpDesk SEJUSC</p>
         </div>
 
-        {!submitted ? (
-          <div className="card p-6 space-y-4">
+        {step === 1 ? (
+          <form onSubmit={submit} className="card p-6 space-y-4">
             <p className="text-sm text-slate-600 dark:text-gray-300">
-              Informe seu CPF para identificarmos sua conta.
+              Informe seu CPF e nome completo cadastrado para redefinir sua senha.
             </p>
+
             <div>
               <label className="field-label">CPF</label>
               <input
                 inputMode="numeric"
                 placeholder="000.000.000-00"
                 className="field-input"
-                value={cpf}
-                onChange={(e) => setCpf(maskCpf(e.target.value))}
+                value={form.cpf}
+                onChange={(e) => setForm({ ...form, cpf: maskCpf(e.target.value) })}
                 autoFocus
               />
-              {cpf.length >= 11 && !cpfValid && (
+              {form.cpf.length >= 11 && !cpfValid && (
                 <p className="mt-1 text-xs text-red-500 dark:text-red-400">CPF inválido</p>
               )}
             </div>
-            <button
-              disabled={!cpfValid}
-              onClick={() => setSubmitted(true)}
-              className="btn-primary w-full"
-            >
-              <KeyRound size={16} />
-              Continuar
+
+            <div>
+              <label className="field-label">Nome completo</label>
+              <input
+                className="field-input"
+                placeholder="Exatamente como no cadastro"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+
+            <Alert message={err} />
+
+            <button type="submit" disabled={!canSubmit || loading} className="btn-primary w-full">
+              {loading ? <Spinner className="h-4 w-4" /> : <KeyRound size={16} />}
+              {loading ? "Verificando..." : "Redefinir senha"}
             </button>
-          </div>
+          </form>
         ) : (
           <div className="card p-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400">
-                <ShieldAlert size={20} />
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 size={20} />
               </span>
               <div>
-                <h3 className="font-semibold text-slate-900 dark:text-gray-100 text-sm">Contate o administrador</h3>
-                <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                  Redefinição de senha manual
-                </p>
+                <h3 className="font-semibold text-slate-900 dark:text-gray-100 text-sm">Senha redefinida!</h3>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">Use a senha temporária abaixo</p>
               </div>
             </div>
-            <p className="text-sm text-slate-700 dark:text-gray-300 leading-relaxed">
-              A redefinição de senha é feita pelo administrador do sistema. Entre em contato com a GTI/SEJUSC informando seu CPF:
-            </p>
-            <div className="rounded-xl bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-700 px-4 py-3 text-center">
-              <span className="font-mono font-semibold text-slate-800 dark:text-gray-100 tracking-widest">{cpf}</span>
+
+            <div>
+              <label className="field-label">Senha temporária</label>
+              <div className="relative">
+                <input
+                  readOnly
+                  type={showPwd ? "text" : "password"}
+                  value={tempPassword}
+                  className="field-input pr-10 font-mono tracking-widest select-all cursor-text"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-gray-300 transition"
+                >
+                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
-            <p className="text-xs text-slate-400 dark:text-gray-500 leading-relaxed">
-              O administrador gerará uma senha temporária que você deverá alterar no primeiro acesso.
+
+            <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-3 py-2">
+              Você será solicitado a trocar esta senha no próximo acesso.
             </p>
+
+            <button onClick={() => nav("/login")} className="btn-primary w-full">
+              Ir para o login
+            </button>
           </div>
         )}
 

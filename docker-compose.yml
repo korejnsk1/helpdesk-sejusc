@@ -6,17 +6,17 @@ services:
     container_name: helpdesk-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: helpdesk_root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: helpdesk_sejusc
-      MYSQL_USER: helpdesk
-      MYSQL_PASSWORD: helpdesk123
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
       - helpdesk_mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=caching_sha2_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-phelpdesk_root"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -31,15 +31,15 @@ services:
     container_name: helpdesk-backend
     restart: unless-stopped
     ports:
-      - "3333:3333"          # acessível em <IP-do-servidor>:3333
+      - "3333:3333"
     environment:
-      DATABASE_URL: "mysql://root:helpdesk_root@mysql:3306/helpdesk_sejusc"
-      JWT_SECRET: "troque-em-producao-7f2a9c1e"
-      JWT_EXPIRES_IN: "8h"
+      DATABASE_URL: "mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/helpdesk_sejusc"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
       PORT: 3333
-      CORS_ORIGIN: "*"       # em produção restringir ao IP da rede interna
-      FEEDBACK_ENABLED: "true"
-      GLPI_ENABLED: "false"
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      FEEDBACK_ENABLED: ${FEEDBACK_ENABLED:-true}
+      GLPI_ENABLED: ${GLPI_ENABLED:-false}
     depends_on:
       mysql:
         condition: service_healthy

@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma.js";
+import { maskCpf } from "../utils/cpf.js";
 
 function parseRange(q) {
   const where = {};
@@ -98,6 +99,69 @@ export async function avgResolutionByCategory(req, res) {
     avgMinutes: Math.round(b.sum / b.n),
     samples: b.n,
   }));
+  res.json(result);
+}
+
+export async function topRequesters(req, res) {
+  const where = { ...parseRange(req.query), openedById: { not: null } };
+  const data = await prisma.ticket.groupBy({
+    by: ["openedById"],
+    where,
+    _count: { _all: true },
+    orderBy: { _count: { openedById: "desc" } },
+    take: Math.min(Number(req.query.limit) || 10, 50),
+  });
+  const ids = data.map((d) => d.openedById);
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true, cpf: true, department: { select: { name: true } } },
+  });
+  const map = new Map(users.map((u) => [u.id, u]));
+  res.json(
+    data.map((d) => {
+      const u = map.get(d.openedById);
+      return {
+        userId: d.openedById,
+        name: u?.name || "—",
+        cpf: u ? maskCpf(u.cpf) : "—",
+        department: u?.department?.name || "—",
+        total: d._count._all,
+      };
+    })
+  );
+}
+
+export async function ticketsByDay(req, res) {
+  const start = req.query.from ? new Date(req.query.from) : new Date(Date.now() - 30 * 86400000);
+  const end   = req.query.to   ? new Date(req.query.to)   : new Date();
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  const rows = await prisma.$queryRaw`
+    SELECT DATE(openedAt) AS day, COUNT(*) AS total
+    FROM Ticket
+    WHERE openedAt >= ${start} AND openedAt <= ${end}
+    GROUP BY DATE(openedAt)
+    ORDER BY day ASC
+  `;
+
+  // MySQL DATE() returns a JS Date; convert to YYYY-MM-DD string
+  const map = new Map(
+    rows.map((r) => [
+      (r.day instanceof Date ? r.day : new Date(r.day)).toISOString().slice(0, 10),
+      Number(r.total),
+    ])
+  );
+
+  // Fill zeros for days without tickets
+  const result = [];
+  const cur = new Date(start);
+  while (cur <= end) {
+    const key = cur.toISOString().slice(0, 10);
+    result.push({ date: key, total: map.get(key) ?? 0 });
+    cur.setDate(cur.getDate() + 1);
+  }
+
   res.json(result);
 }
 

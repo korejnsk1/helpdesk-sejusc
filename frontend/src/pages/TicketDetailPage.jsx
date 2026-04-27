@@ -153,7 +153,7 @@ export default function TicketDetailPage() {
           <span className="font-mono text-slate-600 dark:text-gray-300">{ticket.ticketNumber}</span>
           <div className="ml-auto flex items-center gap-2">
             <StatusBadge status={ticket.status} />
-            {isAdmin && ticket.status === "COMPLETED" && (
+            {isAdmin && (
               <button
                 onClick={() => setShowDeleteModal(true)}
                 className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"

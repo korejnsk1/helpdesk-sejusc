@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { PlusCircle, Search, ChevronRight, Headset, ShieldCheck, Sun, Moon } from "lucide-react";
 
 export default function HomePage() {
   const nav = useNavigate();
+  const { user } = useAuth();
   const { dark, toggle } = useTheme();
   const [ticketInput, setTicketInput] = useState("");
 
@@ -67,7 +69,7 @@ export default function HomePage() {
           <div className="space-y-3">
             {/* Abrir chamado */}
             <Link
-              to="/novo-chamado"
+              to={user ? "/novo-chamado" : "/login?next=/novo-chamado"}
               className="group flex items-center gap-4 w-full card px-5 py-4 hover:shadow-card-md hover:-translate-y-0.5 transition duration-200"
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white group-hover:bg-brand-700 transition">

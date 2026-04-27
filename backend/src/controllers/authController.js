@@ -3,6 +3,8 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../config/prisma.js";
 import { stripCpf, isValidCpf, maskCpf } from "../utils/cpf.js";
 
+const normalize = (s) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
 export async function login(req, res) {
   const { cpf, password } = req.body || {};
   if (!cpf || !password) {
@@ -44,6 +46,35 @@ export async function login(req, res) {
       department: user.department ? { id: user.department.id, name: user.department.name } : null,
     },
   });
+}
+
+export async function forgotPassword(req, res) {
+  const { cpf, name } = req.body || {};
+  if (!cpf || !name) {
+    return res.status(400).json({ error: "CPF e nome são obrigatórios" });
+  }
+  const cleanCpf = stripCpf(cpf);
+  if (!isValidCpf(cleanCpf)) {
+    return res.status(400).json({ error: "CPF inválido" });
+  }
+
+  const user = await prisma.user.findUnique({ where: { cpf: cleanCpf } });
+  if (!user || !user.active || normalize(user.name) !== normalize(name)) {
+    return res.status(400).json({ error: "CPF e nome não correspondem a nenhuma conta ativa" });
+  }
+
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const tempPassword = Array.from({ length: 8 }, () =>
+    chars[Math.floor(Math.random() * chars.length)]
+  ).join("");
+
+  const passwordHash = await bcrypt.hash(tempPassword, 10);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash, mustChangePassword: true },
+  });
+
+  res.json({ ok: true, tempPassword });
 }
 
 export async function me(req, res) {

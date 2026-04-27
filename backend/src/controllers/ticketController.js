@@ -1,14 +1,12 @@
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
-import { stripCpf, isValidCpf, maskCpf } from "../utils/cpf.js";
+import { maskCpf } from "../utils/cpf.js";
 import { buildTicketNumber } from "../utils/ticketNumber.js";
 import { STATUS, canTransition, allowedNext } from "../utils/ticketStateMachine.js";
 import { exportTicketToGlpi } from "../services/glpiService.js";
 
 const createTicketSchema = z.object({
-  requesterName: z.string().min(3, "Nome muito curto"),
-  requesterCpf: z.string(),
-  departmentId: z.number().int().positive("Selecione um setor"),
+  departmentId: z.number().int().positive().optional().nullable(),
   categoryId: z.number().int().positive(),
   subcategoryId: z.number().int().positive().optional().nullable(),
   freeTextDescription: z.string().optional().nullable(),
@@ -21,13 +19,18 @@ export async function createTicket(req, res) {
     return res.status(400).json({ error: "Dados inválidos", details: parsed.error.issues });
   }
   const data = parsed.data;
-  const cleanCpf = stripCpf(data.requesterCpf);
-  if (!isValidCpf(cleanCpf)) {
-    return res.status(400).json({ error: "CPF inválido" });
+
+  // Identidade sempre vem do usuário autenticado
+  const requester = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!requester || !requester.active) {
+    return res.status(401).json({ error: "Usuário não encontrado" });
   }
 
-  // Valida e busca o nome do setor
-  const dept = await prisma.department.findUnique({ where: { id: data.departmentId } });
+  // Usa o setor enviado ou o setor do perfil do usuário
+  const deptId = data.departmentId || requester.departmentId;
+  if (!deptId) return res.status(400).json({ error: "Selecione um setor" });
+
+  const dept = await prisma.department.findUnique({ where: { id: deptId } });
   if (!dept || !dept.active) {
     return res.status(400).json({ error: "Setor inválido ou inativo" });
   }
@@ -56,32 +59,36 @@ export async function createTicket(req, res) {
     if (!sub) return res.status(400).json({ error: "Subcategoria inválida para essa categoria" });
   }
 
-  // Generate next sequence number for the day
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-  const countToday = await prisma.ticket.count({
-    where: { openedAt: { gte: startOfDay } },
-  });
-  const ticketNumber = buildTicketNumber(countToday + 1);
+  const ticketPayload = {
+    requesterName: requester.name,
+    requesterCpf: requester.cpf,
+    department: dept.name,
+    departmentId: dept.id,
+    categoryId: data.categoryId,
+    subcategoryId: (!isRemote && !category.allowsFreeText) ? data.subcategoryId : null,
+    freeTextDescription: (!isRemote && category.allowsFreeText) ? data.freeTextDescription.trim() : null,
+    anyDeskCode: isRemote ? data.anyDeskCode.trim() : null,
+    openedById: req.user?.id ?? null,
+    status: STATUS.OPEN,
+    history: { create: { toStatus: STATUS.OPEN } },
+  };
 
-  const ticket = await prisma.ticket.create({
-    data: {
-      ticketNumber,
-      requesterName: data.requesterName.trim(),
-      requesterCpf: cleanCpf,
-      department: dept.name,
-      departmentId: dept.id,
-      categoryId: data.categoryId,
-      subcategoryId: (!isRemote && !category.allowsFreeText) ? data.subcategoryId : null,
-      freeTextDescription: (!isRemote && category.allowsFreeText) ? data.freeTextDescription.trim() : null,
-      anyDeskCode: isRemote ? data.anyDeskCode.trim() : null,
-      openedById: req.user?.id ?? null,
-      status: STATUS.OPEN,
-      history: {
-        create: { toStatus: STATUS.OPEN },
-      },
-    },
-  });
+  // Retry on ticketNumber collision (race condition between concurrent requests)
+  let ticket;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const countToday = await prisma.ticket.count({ where: { openedAt: { gte: startOfDay } } });
+    const ticketNumber = buildTicketNumber(countToday + 1);
+    try {
+      ticket = await prisma.ticket.create({ data: { ticketNumber, ...ticketPayload } });
+      break;
+    } catch (e) {
+      const isCollision = e?.code === "P2002" && e?.meta?.target?.includes?.("ticketNumber");
+      if (isCollision && attempt < 4) continue;
+      throw e;
+    }
+  }
 
   req.app.get("io")?.emit("ticket:created", { ticketNumber: ticket.ticketNumber });
 
@@ -128,7 +135,7 @@ export async function getTicketPublic(req, res) {
 }
 
 export async function listTickets(req, res) {
-  const { status, unitId, technicianId, from, to, categoryId } = req.query;
+  const { status, unitId, technicianId, from, to, categoryId, cursor, limit } = req.query;
   const where = {};
   if (status) where.status = status;
   if (unitId) where.unitId = Number(unitId);
@@ -148,7 +155,10 @@ export async function listTickets(req, res) {
     ];
   }
 
-  const tickets = await prisma.ticket.findMany({
+  const take = Math.min(Number(limit) || 200, 500);
+  const cursorClause = cursor ? { cursor: { id: Number(cursor) }, skip: 1 } : {};
+
+  const rows = await prisma.ticket.findMany({
     where,
     include: {
       category: true,
@@ -157,9 +167,15 @@ export async function listTickets(req, res) {
       assignedTech: { select: { id: true, name: true } },
     },
     orderBy: { openedAt: "asc" },
-    take: 500,
+    take: take + 1,
+    ...cursorClause,
   });
-  res.json(tickets.map(formatTicket));
+
+  const hasMore = rows.length > take;
+  const tickets = hasMore ? rows.slice(0, take) : rows;
+  const nextCursor = hasMore ? tickets[tickets.length - 1].id : null;
+
+  res.json({ tickets: tickets.map(formatTicket), nextCursor });
 }
 
 export async function getTicket(req, res) {
@@ -295,17 +311,11 @@ export async function transitionTicket(req, res) {
   res.json({ ok: true, status: updated.status });
 }
 
-// DELETE /api/tickets/:id — apenas ADMIN, apenas COMPLETED
+// DELETE /api/tickets/:id — apenas ADMIN
 export async function deleteTicket(req, res) {
   const id = Number(req.params.id);
   const ticket = await prisma.ticket.findUnique({ where: { id } });
   if (!ticket) return res.status(404).json({ error: "Chamado não encontrado" });
-  if (ticket.status !== "COMPLETED") {
-    return res.status(400).json({ error: "Apenas chamados concluídos podem ser excluídos" });
-  }
-  // Remove registros relacionados antes (histórico + feedback)
-  await prisma.ticketHistory.deleteMany({ where: { ticketId: id } });
-  await prisma.feedback.deleteMany({ where: { ticketId: id } });
   await prisma.ticket.delete({ where: { id } });
   res.json({ ok: true });
 }

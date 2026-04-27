@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { maskCpf, isValidCpf } from "../lib/cpf";
@@ -8,6 +8,7 @@ import { LogIn, ArrowLeft, Sun, Moon } from "lucide-react";
 
 export default function LoginPage() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const { dark, toggle } = useTheme();
   const [cpf, setCpf] = useState("");
@@ -15,14 +16,17 @@ export default function LoginPage() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const next = searchParams.get("next");
+
   async function submit(e) {
     e.preventDefault();
     setErr("");
     if (!isValidCpf(cpf)) return setErr("CPF inválido. Verifique e tente novamente.");
     setLoading(true);
     try {
-      await login(cpf, password);
-      nav("/painel");
+      const user = await login(cpf, password);
+      const dest = next || (["TECHNICIAN", "MONITOR", "ADMIN"].includes(user.role) ? "/painel" : "/novo-chamado");
+      nav(dest, { replace: true });
     } catch (ex) {
       setErr(ex.response?.data?.error || "Credenciais incorretas.");
     } finally {
@@ -49,8 +53,8 @@ export default function LoginPage() {
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white text-lg font-bold shadow-card-md mb-3">
             HD
           </span>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-gray-100">Acesso restrito</h1>
-          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Técnicos e Monitores</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-gray-100">Entrar na conta</h1>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">HelpDesk SEJUSC</p>
         </div>
 
         <form onSubmit={submit} className="card p-6 space-y-4">
