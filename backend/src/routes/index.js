@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { login, me, forgotPassword } from "../controllers/authController.js";
+import rateLimit from "express-rate-limit";
+import { login, me, logout, forgotPassword, listResetRequests, resolveResetRequest } from "../controllers/authController.js";
 import {
   register, listUsers, updateUser, deleteUser, listMonitors,
   resetPassword, changePassword, myTickets,
@@ -22,6 +23,24 @@ import {
 } from "../controllers/analyticsController.js";
 import { authRequired, optionalAuth, requireRole } from "../middleware/auth.js";
 
+// 10 tentativas por IP a cada 15 minutos nos endpoints de autenticação
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas tentativas. Tente novamente em 15 minutos." },
+});
+
+// 5 solicitações por IP a cada hora no forgot-password (evita spam)
+const forgotLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas solicitações. Tente novamente em 1 hora." },
+});
+
 const router = Router();
 
 // ── Público ──────────────────────────────────────────────────────────────────
@@ -34,11 +53,16 @@ router.get("/tickets/track/:ticketNumber", getTicketPublic);
 router.post("/tickets/track/:ticketNumber/feedback", submitFeedback);
 
 // ── Autenticação ──────────────────────────────────────────────────────────────
-router.post("/auth/login",           login);
-router.post("/auth/register",        register);
-router.post("/auth/forgot-password", forgotPassword);
+router.post("/auth/login",           authLimiter, login);
+router.post("/auth/logout",          logout);
+router.post("/auth/register",        authLimiter, register);
+router.post("/auth/forgot-password", forgotLimiter, forgotPassword);
 router.get("/auth/me",               authRequired, me);
 router.post("/auth/change-password", authRequired, changePassword);
+
+// ── Solicitações de reset de senha ────────────────────────────────────────────
+router.get("/password-reset-requests",           authRequired, requireRole("MONITOR", "ADMIN"), listResetRequests);
+router.post("/password-reset-requests/:id/resolve", authRequired, requireRole("MONITOR", "ADMIN"), resolveResetRequest);
 
 // ── Monitores (público — exibição no dashboard/login) ─────────────────────────
 router.get("/monitors", listMonitors);

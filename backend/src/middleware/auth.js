@@ -1,22 +1,24 @@
 import jwt from "jsonwebtoken";
 
+function extractToken(req) {
+  if (req.cookies?.hd_token) return req.cookies.hd_token;
+  const [, token] = (req.headers.authorization || "").split(" ");
+  return token || null;
+}
+
 export function authRequired(req, res, next) {
-  const header = req.headers.authorization || "";
-  const [, token] = header.split(" ");
+  const token = extractToken(req);
   if (!token) return res.status(401).json({ error: "Token ausente" });
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = payload;
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
   } catch {
     return res.status(401).json({ error: "Token inválido ou expirado" });
   }
 }
 
-// Tenta decodificar o token mas não falha se ausente
 export function optionalAuth(req, res, next) {
-  const header = req.headers.authorization || "";
-  const [, token] = header.split(" ");
+  const token = extractToken(req);
   if (token) {
     try {
       req.user = jwt.verify(token, process.env.JWT_SECRET);

@@ -7,7 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   CheckCircle2, XCircle, UserCheck, UserX, ShieldCheck,
   Shield, Clock, Building2, Trash2, AlertTriangle, Crown,
-  KeyRound, Copy, Check as CheckIcon,
+  KeyRound, Copy, Check as CheckIcon, Phone, Bell,
 } from "lucide-react";
 
 export default function UsersPage() {
@@ -19,13 +19,36 @@ export default function UsersPage() {
   const [tab, setTab] = useState("base");
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmAdmin, setConfirmAdmin] = useState(null);
-  const [resetResult, setResetResult] = useState(null); // { name, tempPassword }
+  const [resetResult, setResetResult] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [resetRequests, setResetRequests] = useState([]);
+  const [resolvingId, setResolvingId] = useState(null);
 
   useEffect(() => {
     load();
     api.get("/units").then((r) => setUnits(r.data));
+    loadResetRequests();
   }, []);
+
+  async function loadResetRequests() {
+    try {
+      const { data } = await api.get("/password-reset-requests");
+      setResetRequests(data);
+    } catch {}
+  }
+
+  async function resolveRequest(id) {
+    setResolvingId(id);
+    try {
+      const { data } = await api.post(`/password-reset-requests/${id}/resolve`);
+      setResetResult({ name: data.name, tempPassword: data.tempPassword, phone: data.phone });
+      loadResetRequests();
+    } catch (e) {
+      setErr(e.response?.data?.error || "Erro ao resolver solicitação");
+    } finally {
+      setResolvingId(null);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -85,11 +108,12 @@ export default function UsersPage() {
   const tabData = { base, active, monitors, admins, all: users };
 
   const tabs = [
-    { key: "base",     label: "Usuários",   count: base.length,     highlight: base.length > 0 },
-    { key: "active",   label: "Técnicos",   count: active.length,   highlight: false },
-    { key: "monitors", label: "Monitores",  count: monitors.length, highlight: false },
-    { key: "admins",   label: "Admins",     count: admins.length,   highlight: false },
-    { key: "all",      label: "Todos",      count: users.length,    highlight: false },
+    { key: "base",     label: "Usuários",       count: base.length,             highlight: false },
+    { key: "active",   label: "Técnicos",       count: active.length,           highlight: false },
+    { key: "monitors", label: "Monitores",      count: monitors.length,         highlight: false },
+    { key: "admins",   label: "Admins",         count: admins.length,           highlight: false },
+    { key: "all",      label: "Todos",          count: users.length,            highlight: false },
+    { key: "resets",   label: "Senhas",         count: resetRequests.length,    highlight: resetRequests.length > 0 },
   ];
 
   return (
@@ -125,6 +149,15 @@ export default function UsersPage() {
                 </button>
               </div>
             </div>
+            {resetResult.phone && (
+              <div className="flex items-center gap-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 px-4 py-3">
+                <Phone size={16} className="text-brand-600 dark:text-brand-400 shrink-0" />
+                <div>
+                  <p className="text-xs text-brand-700 dark:text-brand-300 font-medium">Entre em contato com o usuário</p>
+                  <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">{resetResult.phone}</p>
+                </div>
+              </div>
+            )}
             <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-4 py-3 text-xs text-amber-800 dark:text-amber-300">
               ⚠️ Esta senha é exibida apenas uma vez. O usuário deverá alterá-la no próximo login.
             </div>
@@ -244,7 +277,44 @@ export default function UsersPage() {
           ))}
         </div>
 
-        {loading ? (
+        {tab === "resets" ? (
+          resetRequests.length === 0 ? (
+            <div className="card p-10 text-center text-slate-400 dark:text-gray-500">
+              Nenhuma solicitação de redefinição pendente 🎉
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {resetRequests.map((r) => (
+                <div key={r.id} className="card px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                      <Bell size={18} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-800 dark:text-gray-100 truncate">{r.name}</p>
+                      <p className="text-xs text-slate-500 dark:text-gray-400">{r.cpf}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-gray-300 shrink-0">
+                    <Phone size={14} className="text-brand-500" />
+                    <span className="font-medium">{r.phone}</span>
+                  </div>
+                  <div className="text-xs text-slate-400 dark:text-gray-500 shrink-0">
+                    {new Date(r.createdAt).toLocaleString("pt-BR")}
+                  </div>
+                  <button
+                    onClick={() => resolveRequest(r.id)}
+                    disabled={resolvingId === r.id}
+                    className="btn-primary text-sm py-2 px-4 shrink-0"
+                  >
+                    {resolvingId === r.id ? <Spinner className="h-4 w-4" /> : <KeyRound size={14} />}
+                    Resetar senha
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
+        ) : loading ? (
           <div className="flex items-center justify-center py-16">
             <Spinner className="h-8 w-8" />
           </div>

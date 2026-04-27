@@ -5,11 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { Alert, Spinner } from "../components/ui";
 import {
   ArrowLeft, ArrowRight, Monitor, Wifi, KeyRound, HelpCircle,
-<<<<<<< HEAD
   CheckCircle2, MonitorSmartphone, Copy, Check as CheckIcon, ChevronDown, Printer, LogOut,
-=======
-  CheckCircle2, MonitorSmartphone, Copy, Check as CheckIcon, ChevronDown, Printer,
->>>>>>> f06cf71593defd6584850a6dffb14c64c77a29fc
 } from "lucide-react";
 
 const CATEGORY_ICONS = {

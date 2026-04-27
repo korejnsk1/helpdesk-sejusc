@@ -3,14 +3,12 @@ import { prisma } from "../config/prisma.js";
 import { maskCpf } from "../utils/cpf.js";
 import { buildTicketNumber } from "../utils/ticketNumber.js";
 import { STATUS, canTransition, allowedNext } from "../utils/ticketStateMachine.js";
-import { exportTicketToGlpi } from "../services/glpiService.js";
-
 const createTicketSchema = z.object({
   departmentId: z.number().int().positive().optional().nullable(),
   categoryId: z.number().int().positive(),
   subcategoryId: z.number().int().positive().optional().nullable(),
-  freeTextDescription: z.string().optional().nullable(),
-  anyDeskCode: z.string().optional().nullable(),
+  freeTextDescription: z.string().max(2000).optional().nullable(),
+  anyDeskCode: z.string().max(20).optional().nullable(),
 });
 
 export async function createTicket(req, res) {
@@ -79,19 +77,22 @@ export async function createTicket(req, res) {
     history: { create: { toStatus: STATUS.OPEN } },
   };
 
-  // Retry on ticketNumber collision (race condition between concurrent requests)
+  // Geração atômica do número de protocolo dentro de transação serializada
   let ticket;
   for (let attempt = 0; attempt < 5; attempt++) {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const countToday = await prisma.ticket.count({ where: { openedAt: { gte: startOfDay } } });
-    const ticketNumber = buildTicketNumber(countToday + 1);
     try {
-      ticket = await prisma.ticket.create({ data: { ticketNumber, ...ticketPayload } });
+      ticket = await prisma.$transaction(async (tx) => {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const countToday = await tx.ticket.count({ where: { openedAt: { gte: startOfDay } } });
+        const ticketNumber = buildTicketNumber(countToday + 1);
+        return tx.ticket.create({ data: { ticketNumber, ...ticketPayload } });
+      }, { isolationLevel: "Serializable" });
       break;
     } catch (e) {
       const isCollision = e?.code === "P2002" && e?.meta?.target?.includes?.("ticketNumber");
-      if (isCollision && attempt < 4) continue;
+      const isDeadlock = e?.code === "P2034";
+      if ((isCollision || isDeadlock) && attempt < 4) continue;
       throw e;
     }
   }
@@ -153,11 +154,12 @@ export async function listTickets(req, res) {
     if (to) where.openedAt.lte = new Date(to);
   }
 
-  // Technicians see only their unit + their assigned tickets
+  // Technicians see only their unit + their assigned tickets (unitId from DB, not JWT)
   if (req.user.role === "TECHNICIAN") {
+    const techUser = await prisma.user.findUnique({ where: { id: req.user.id }, select: { unitId: true } });
     where.OR = [
       { assignedTechId: req.user.id },
-      { unitId: req.user.unitId || -1 },
+      { unitId: techUser?.unitId || -1 },
     ];
   }
 
@@ -295,24 +297,6 @@ export async function transitionTicket(req, res) {
     ticketNumber: updated.ticketNumber,
     status: updated.status,
   });
-
-  // Exportação para o GLPI ocorre em background ao concluir
-  if (toStatus === STATUS.COMPLETED && process.env.GLPI_ENABLED === "true") {
-    const full = await prisma.ticket.findUnique({
-      where: { id: updated.id },
-      include: { category: true, subcategory: true, unit: true, assignedTech: true },
-    });
-    exportTicketToGlpi(full)
-      .then(async (r) => {
-        if (r?.glpiTicketId) {
-          await prisma.ticket.update({
-            where: { id: updated.id },
-            data: { glpiExportedAt: new Date(), glpiTicketId: r.glpiTicketId },
-          });
-        }
-      })
-      .catch((err) => console.error("Erro ao exportar para GLPI:", err));
-  }
 
   res.json({ ok: true, status: updated.status });
 }

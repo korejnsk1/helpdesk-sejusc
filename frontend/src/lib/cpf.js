@@ -1,3 +1,5 @@
+// Mantido em sincronia com backend/src/utils/cpf.js — alterar nos dois lugares
+
 export function stripCpf(v) {
   return (v || "").replace(/\D/g, "");
 }

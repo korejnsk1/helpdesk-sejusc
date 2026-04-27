@@ -56,8 +56,24 @@ model User {
   assignedTickets    Ticket[]   @relation("AssignedTechnician")
   openedTickets      Ticket[]   @relation("TicketOpener")
   history            TicketHistory[]
+  resolvedRequests   PasswordResetRequest[] @relation("ResolvedRequests")
 
   @@index([departmentId])
+}
+
+model PasswordResetRequest {
+  id           Int       @id @default(autoincrement())
+  cpf          String
+  name         String
+  phone        String
+  status       String    @default("PENDING")
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+  resolvedById Int?
+  resolvedBy   User?     @relation("ResolvedRequests", fields: [resolvedById], references: [id])
+
+  @@index([status])
+  @@index([cpf])
 }
 
 model Category {
@@ -107,8 +123,6 @@ model Ticket {
   enRouteAt           DateTime?
   inServiceAt         DateTime?
   completedAt         DateTime?
-  glpiExportedAt      DateTime?
-  glpiTicketId        Int?
   history             TicketHistory[]
   feedback            Feedback?
 

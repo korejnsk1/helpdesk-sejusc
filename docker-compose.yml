@@ -39,7 +39,6 @@ services:
       PORT: 3333
       CORS_ORIGIN: ${CORS_ORIGIN}
       FEEDBACK_ENABLED: ${FEEDBACK_ENABLED:-true}
-      GLPI_ENABLED: ${GLPI_ENABLED:-false}
     depends_on:
       mysql:
         condition: service_healthy
