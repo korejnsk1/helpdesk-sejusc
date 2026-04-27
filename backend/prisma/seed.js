@@ -83,6 +83,7 @@ async function main() {
       sortOrder: 4,
       allowsFreeText: false,
       subcategories: [
+<<<<<<< HEAD
         "Impressora não aparece",
         "Impressora offline",
         "Impressão não sai",
@@ -97,6 +98,23 @@ async function main() {
       icon: "monitor-smartphone",
       sortOrder: 5,
       allowsFreeText: false,
+=======
+        "Impressora não imprime",
+        "Papel enroscado",
+        "Toner/Cartucho vazio ou com defeito",
+        "Impressora offline",
+        "Qualidade de impressão ruim",
+        "Impressora não reconhecida pelo computador",
+        "Outro",
+      ],
+    },
+    {
+      code: "OTHER",
+      name: "Outro",
+      icon: "help",
+      sortOrder: 99,
+      allowsFreeText: true,
+>>>>>>> f06cf71593defd6584850a6dffb14c64c77a29fc
       subcategories: [],
     },
   ];
