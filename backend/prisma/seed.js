@@ -36,7 +36,7 @@ async function main() {
   const categories = [
     {
       code: "HARDWARE",
-      name: "Problema de Hardware",
+      name: "Computador",
       icon: "desktop",
       sortOrder: 1,
       allowsFreeText: false,
@@ -50,7 +50,7 @@ async function main() {
     },
     {
       code: "NETWORK",
-      name: "Problema de Rede/Internet",
+      name: "nternet",
       icon: "wifi",
       sortOrder: 2,
       allowsFreeText: false,
@@ -60,7 +60,8 @@ async function main() {
         "Cabo de rede",
         "Wi-Fi não conecta",
         "VPN não conecta",
-        "Falha de Confiança"
+        "Falha de Confiança",
+        "Outro",
       ],
     },
     {
