@@ -79,6 +79,22 @@ async function main() {
       ],
     },
     {
+      code: "PRINTER",
+      name: "Impressora",
+      icon: "printer",
+      sortOrder: 4,
+      allowsFreeText: false,
+      subcategories: [
+        "Impressora não imprime",
+        "Papel enroscado",
+        "Toner/Cartucho vazio ou com defeito",
+        "Impressora offline",
+        "Qualidade de impressão ruim",
+        "Impressora não reconhecida pelo computador",
+        "Outro",
+      ],
+    },
+    {
       code: "OTHER",
       name: "Outro",
       icon: "help",

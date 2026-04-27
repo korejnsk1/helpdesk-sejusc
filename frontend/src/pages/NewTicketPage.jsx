@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { Alert, Spinner } from "../components/ui";
 import {
   ArrowLeft, ArrowRight, Monitor, Wifi, KeyRound, HelpCircle,
-  CheckCircle2, MonitorSmartphone, Copy, Check as CheckIcon, ChevronDown,
+  CheckCircle2, MonitorSmartphone, Copy, Check as CheckIcon, ChevronDown, Printer,
 } from "lucide-react";
 
 const CATEGORY_ICONS = {
@@ -14,6 +14,7 @@ const CATEGORY_ICONS = {
   ACCESS:   KeyRound,
   OTHER:    HelpCircle,
   REMOTE:   MonitorSmartphone,
+  PRINTER:  Printer,
 };
 
 const CATEGORY_COLORS = {
@@ -22,6 +23,7 @@ const CATEGORY_COLORS = {
   ACCESS:   "bg-violet-50  dark:bg-violet-900/30  text-violet-600  dark:text-violet-400  border-violet-200  dark:border-violet-700",
   OTHER:    "bg-slate-50   dark:bg-gray-800       text-slate-600   dark:text-gray-400    border-slate-200   dark:border-gray-700",
   REMOTE:   "bg-cyan-50    dark:bg-cyan-900/30    text-cyan-600    dark:text-cyan-400    border-cyan-200    dark:border-cyan-700",
+  PRINTER:  "bg-green-50   dark:bg-green-900/30   text-green-600   dark:text-green-400   border-green-200   dark:border-green-700",
 };
 
 const STEPS = ["Tipo do problema", "Detalhes"];
