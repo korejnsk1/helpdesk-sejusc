@@ -42,51 +42,69 @@ async function main() {
       allowsFreeText: false,
       subcategories: [
         "Computador não liga",
+        "Computador travado",
         "Monitor sem imagem",
-        "Teclado/Mouse com defeito",
-        "Cabo/Conexão",
+        "Mouse/Teclado não funciona",
         "Outro",
       ],
     },
     {
       code: "NETWORK",
-      name: "nternet",
+      name: "Internet",
       icon: "wifi",
       sortOrder: 2,
       allowsFreeText: false,
       subcategories: [
-        "Sem acesso à internet",
+        "Sem internet",
         "Internet lenta",
-        "Cabo de rede",
+        "Falha de confiança",
         "Wi-Fi não conecta",
-        "VPN não conecta",
-        "Falha de Confiança",
         "Outro",
       ],
     },
     {
       code: "ACCESS",
-      name: "Acesso a Sistema ou Senha",
+      name: "Senhas e Sistemas",
       icon: "key",
       sortOrder: 3,
       allowsFreeText: false,
       subcategories: [
-        "Esqueci a senha",
+        "Esqueci a senha (SIGED)",
         "Usuário bloqueado",
-        "Solicitar acesso a novo sistema",
+        "Criação de usuário (Novo Servidor)",
         "Problema no SIGED",
-        "Problema no e-mail institucional",
+        "Problema no site da SEJUSC",
       ],
     },
     {
-      code: "OTHER",
-      name: "Outro",
-      icon: "help",
-      sortOrder: 99,
-      allowsFreeText: true,
+      code: "PRINTER",
+      name: "Impressora",
+      icon: "printer",
+      sortOrder: 4,
+      allowsFreeText: false,
+      subcategories: [
+        "Impressora não aparece",
+        "Impressora offline",
+        "Impressão não sai",
+        "Papel enroscado",
+        "Sem papel",
+        "Troca de toner",
+      ],
+    },
+    {
+      code: "REMOTE",
+      name: "Suporte Remoto",
+      icon: "monitor-smartphone",
+      sortOrder: 5,
+      allowsFreeText: false,
       subcategories: [],
     },
   ];
+
+  // Remove categoria OTHER obsoleta (se não tiver chamados vinculados)
+  await prisma.category.deleteMany({
+    where: { code: "OTHER", tickets: { none: {} } },
+  });
 
   for (const cat of categories) {
     const created = await prisma.category.upsert({
@@ -105,6 +123,16 @@ async function main() {
         allowsFreeText: cat.allowsFreeText,
       },
     });
+
+    // Remove subcategorias obsoletas (sem chamados vinculados)
+    await prisma.subcategory.deleteMany({
+      where: {
+        categoryId: created.id,
+        name: { notIn: cat.subcategories },
+        tickets: { none: {} },
+      },
+    });
+
     for (const subName of cat.subcategories) {
       const existing = await prisma.subcategory.findFirst({
         where: { categoryId: created.id, name: subName },

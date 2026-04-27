@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { Alert, Spinner } from "../components/ui";
 import {
   ArrowLeft, ArrowRight, Monitor, Wifi, KeyRound, HelpCircle,
-  CheckCircle2, MonitorSmartphone, Copy, Check as CheckIcon, ChevronDown,
+  CheckCircle2, MonitorSmartphone, Copy, Check as CheckIcon, ChevronDown, Printer, LogOut,
 } from "lucide-react";
 
 const CATEGORY_ICONS = {
@@ -14,6 +14,7 @@ const CATEGORY_ICONS = {
   ACCESS:   KeyRound,
   OTHER:    HelpCircle,
   REMOTE:   MonitorSmartphone,
+  PRINTER:  Printer,
 };
 
 const CATEGORY_COLORS = {
@@ -22,13 +23,14 @@ const CATEGORY_COLORS = {
   ACCESS:   "bg-violet-50  dark:bg-violet-900/30  text-violet-600  dark:text-violet-400  border-violet-200  dark:border-violet-700",
   OTHER:    "bg-slate-50   dark:bg-gray-800       text-slate-600   dark:text-gray-400    border-slate-200   dark:border-gray-700",
   REMOTE:   "bg-cyan-50    dark:bg-cyan-900/30    text-cyan-600    dark:text-cyan-400    border-cyan-200    dark:border-cyan-700",
+  PRINTER:  "bg-green-50   dark:bg-green-900/30   text-green-600   dark:text-green-400   border-green-200   dark:border-green-700",
 };
 
 const STEPS = ["Tipo do problema", "Detalhes"];
 
 export default function NewTicketPage() {
   const nav = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [categories, setCategories] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [step, setStep] = useState(1);
@@ -56,6 +58,8 @@ export default function NewTicketPage() {
 
   const selectedCategory = categories.find((c) => c.id === form.categoryId);
   const isRemote = selectedCategory?.code === "REMOTE";
+  const selectedSubcategory = selectedCategory?.subcategories?.find((s) => s.id === form.subcategoryId);
+  const isOutro = selectedSubcategory?.name === "Outro";
 
   async function submit() {
     setError("");
@@ -119,6 +123,16 @@ export default function NewTicketPage() {
         </Link>
         <div className="h-4 w-px bg-slate-200 dark:bg-gray-700" />
         <h1 className="text-sm font-semibold text-slate-800 dark:text-gray-100">Abrir chamado</h1>
+        <div className="ml-auto">
+          <button
+            onClick={() => { logout(); }}
+            className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition"
+            title="Sair"
+          >
+            <LogOut size={16} />
+            Sair
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 p-4 md:p-8 max-w-2xl w-full mx-auto">
@@ -334,11 +348,28 @@ export default function NewTicketPage() {
                           {selected && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
                         </div>
                         <input type="radio" name="sub" className="sr-only" checked={selected}
-                          onChange={() => setForm({ ...form, subcategoryId: s.id })} />
+                          onChange={() => setForm({ ...form, subcategoryId: s.id, freeTextDescription: "" })} />
                         <span className="text-sm text-slate-700 dark:text-gray-200">{s.name}</span>
                       </label>
                     );
                   })}
+
+                  {isOutro && (
+                    <div className="pt-1">
+                      <label className="field-label">Descreva o problema</label>
+                      <textarea
+                        rows={4}
+                        className="field-input resize-none"
+                        placeholder="Descreva o problema com detalhes..."
+                        value={form.freeTextDescription}
+                        onChange={(e) => setForm({ ...form, freeTextDescription: e.target.value })}
+                        autoFocus
+                      />
+                      <p className="mt-1 text-xs text-slate-400 dark:text-gray-500">
+                        {form.freeTextDescription.length} / mínimo 5 caracteres
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -355,7 +386,7 @@ export default function NewTicketPage() {
                       ? form.anyDeskCode.trim().length < 3
                       : selectedCategory.allowsFreeText
                       ? form.freeTextDescription.trim().length < 5
-                      : !form.subcategoryId)
+                      : !form.subcategoryId || (isOutro && form.freeTextDescription.trim().length < 5))
                   }
                   onClick={submit}
                   className="btn-primary flex-1"

@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const nav = useNavigate();
   const { dark, toggle } = useTheme();
   const [departments, setDepartments] = useState([]);
+  const [deptLoading, setDeptLoading] = useState(true);
   const [form, setForm] = useState({ name: "", cpf: "", departmentId: "", password: "", confirmPassword: "" });
   const [showPwd, setShowPwd] = useState(false);
   const [err, setErr] = useState("");
@@ -17,7 +18,10 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    api.get("/departments").then((r) => setDepartments(r.data));
+    api.get("/departments")
+      .then((r) => setDepartments(r.data))
+      .catch(() => setDepartments([]))
+      .finally(() => setDeptLoading(false));
   }, []);
 
   const cpfValid = isValidCpf(form.cpf);
@@ -118,7 +122,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="field-label">Setor / Departamento</label>
-            {departments.length === 0 ? (
+            {deptLoading ? (
               <div className="field-input flex items-center gap-2 text-slate-400 dark:text-gray-500">
                 <Spinner className="h-4 w-4" /> Carregando setores...
               </div>

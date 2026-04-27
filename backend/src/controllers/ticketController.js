@@ -42,6 +42,10 @@ export async function createTicket(req, res) {
   if (!category) return res.status(400).json({ error: "Categoria inexistente" });
 
   const isRemote = category.code === "REMOTE";
+  const selectedSub = (!isRemote && data.subcategoryId)
+    ? category.subcategories.find((s) => s.id === data.subcategoryId)
+    : null;
+  const isOutro = selectedSub?.name === "Outro";
 
   if (isRemote) {
     if (!data.anyDeskCode || data.anyDeskCode.trim().length < 3) {
@@ -55,8 +59,10 @@ export async function createTicket(req, res) {
     if (!data.subcategoryId) {
       return res.status(400).json({ error: "Subcategoria é obrigatória" });
     }
-    const sub = category.subcategories.find((s) => s.id === data.subcategoryId);
-    if (!sub) return res.status(400).json({ error: "Subcategoria inválida para essa categoria" });
+    if (!selectedSub) return res.status(400).json({ error: "Subcategoria inválida para essa categoria" });
+    if (isOutro && (!data.freeTextDescription || data.freeTextDescription.trim().length < 5)) {
+      return res.status(400).json({ error: "Descreva o problema (mínimo 5 caracteres)" });
+    }
   }
 
   const ticketPayload = {
@@ -66,7 +72,7 @@ export async function createTicket(req, res) {
     departmentId: dept.id,
     categoryId: data.categoryId,
     subcategoryId: (!isRemote && !category.allowsFreeText) ? data.subcategoryId : null,
-    freeTextDescription: (!isRemote && category.allowsFreeText) ? data.freeTextDescription.trim() : null,
+    freeTextDescription: (!isRemote && (category.allowsFreeText || isOutro)) ? data.freeTextDescription.trim() : null,
     anyDeskCode: isRemote ? data.anyDeskCode.trim() : null,
     openedById: req.user?.id ?? null,
     status: STATUS.OPEN,
