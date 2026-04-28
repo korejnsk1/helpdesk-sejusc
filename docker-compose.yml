@@ -10,8 +10,6 @@ services:
       MYSQL_DATABASE: helpdesk_sejusc
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    ports:
-      - "3306:3306"
     volumes:
       - helpdesk_mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=caching_sha2_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
