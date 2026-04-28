@@ -70,7 +70,9 @@ export async function createTicket(req, res) {
     departmentId: dept.id,
     categoryId: data.categoryId,
     subcategoryId: (!isRemote && !category.allowsFreeText) ? data.subcategoryId : null,
-    freeTextDescription: (!isRemote && (category.allowsFreeText || isOutro)) ? data.freeTextDescription.trim() : null,
+    freeTextDescription: isRemote
+      ? (data.freeTextDescription?.trim() || null)
+      : (!isRemote && (category.allowsFreeText || isOutro)) ? data.freeTextDescription.trim() : null,
     anyDeskCode: isRemote ? data.anyDeskCode.trim() : null,
     openedById: req.user?.id ?? null,
     status: STATUS.OPEN,

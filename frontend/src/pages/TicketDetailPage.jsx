@@ -22,6 +22,12 @@ const TRANSITION_LABEL = {
   COMPLETED:  "Concluir chamado",
 };
 
+const TRANSITION_LABEL_REMOTE = {
+  VIEWED:     "Marcar como Visualizado",
+  IN_SERVICE: "Iniciar atendimento remoto",
+  COMPLETED:  "Concluir chamado",
+};
+
 const TRANSITION_COLOR = {
   VIEWED:     "btn-secondary",
   EN_ROUTE:   "bg-amber-500 hover:bg-amber-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold inline-flex items-center gap-2 transition",
@@ -354,17 +360,22 @@ export default function TicketDetailPage() {
                 <Alert message={err} />
 
                 <div className="space-y-2 pt-1">
-                  {ticket.allowedNext.map((next) => (
-                    <button
-                      key={next}
-                      disabled={loading}
-                      onClick={() => doTransition(next)}
-                      className={`w-full justify-center ${TRANSITION_COLOR[next] || "btn-primary"}`}
-                    >
-                      {loading ? <Spinner className="h-4 w-4" /> : <CheckCircle2 size={15} />}
-                      {TRANSITION_LABEL[next] || `→ ${STATUS_LABEL[next]}`}
-                    </button>
-                  ))}
+                  {ticket.allowedNext
+                    .filter((next) => !(ticket.isRemote && next === "EN_ROUTE"))
+                    .map((next) => {
+                      const labels = ticket.isRemote ? TRANSITION_LABEL_REMOTE : TRANSITION_LABEL;
+                      return (
+                        <button
+                          key={next}
+                          disabled={loading}
+                          onClick={() => doTransition(next)}
+                          className={`w-full justify-center ${TRANSITION_COLOR[next] || "btn-primary"}`}
+                        >
+                          {loading ? <Spinner className="h-4 w-4" /> : <CheckCircle2 size={15} />}
+                          {labels[next] || `→ ${STATUS_LABEL[next]}`}
+                        </button>
+                      );
+                    })}
                 </div>
               </>
             )}

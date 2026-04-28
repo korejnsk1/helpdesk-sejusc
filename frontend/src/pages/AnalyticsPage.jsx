@@ -2,16 +2,55 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import AppHeader from "../components/AppHeader";
 import { Spinner } from "../components/ui";
+import { useTheme } from "../context/ThemeContext";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
   PieChart, Pie, Legend, AreaChart, Area,
 } from "recharts";
-import { Calendar, BarChart2, PieChart as PieChartIcon, TrendingUp } from "lucide-react";
+import { Calendar, BarChart2, PieChart as PieChartIcon, TrendingUp, Download } from "lucide-react";
+
+function exportCsv(data, range) {
+  const sections = [
+    { title: "Por Unidade",     rows: data.byUnit  || [], cols: ["unit", "total"] },
+    { title: "Por Técnico",     rows: data.byTech  || [], cols: ["technician", "total"] },
+    { title: "Por Departamento",rows: data.byDept  || [], cols: ["department", "total"] },
+    { title: "Por Categoria",   rows: data.byCat   || [], cols: ["category", "total"] },
+    { title: "Mais Solicitantes", rows: data.topRequesters || [], cols: ["name", "total"] },
+    { title: "Tempo Médio (min)", rows: data.avg   || [], cols: ["category", "avgMinutes"] },
+  ];
+
+  const lines = [`Relatório HelpDesk SEJUSC — ${range.from} a ${range.to}`, ""];
+  for (const { title, rows, cols } of sections) {
+    lines.push(title);
+    lines.push(cols.join(";"));
+    for (const row of rows) lines.push(cols.map((c) => row[c] ?? "").join(";"));
+    lines.push("");
+  }
+
+  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `relatorio-helpdesk-${range.from}-${range.to}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const PALETTE = [
   "#2563eb", "#7c3aed", "#059669", "#d97706", "#dc2626",
   "#0891b2", "#9333ea", "#16a34a", "#ea580c", "#0284c7",
 ];
+
+function useChartTheme() {
+  const { dark } = useTheme();
+  return {
+    grid:    dark ? "#1f2937" : "#f1f5f9",
+    tick:    dark ? "#6b7280" : "#94a3b8",
+    tooltip: dark
+      ? { background: "#1f2937", border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgb(0 0 0 / .4)", fontSize: "12px", color: "#f3f4f6" }
+      : { background: "#ffffff", border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgb(0 0 0 / .08)", fontSize: "12px" },
+  };
+}
 
 function TypeToggle({ type, onChange }) {
   return (
@@ -44,6 +83,7 @@ function TypeToggle({ type, onChange }) {
 
 function ChartCard({ title, data, xKey, yKey = "total", loading, onlyBar = false }) {
   const [type, setType] = useState("bar");
+  const { grid, tick, tooltip } = useChartTheme();
 
   return (
     <div className="card p-5">
@@ -63,10 +103,10 @@ function ChartCard({ title, data, xKey, yKey = "total", loading, onlyBar = false
       ) : type === "bar" ? (
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={data} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <CartesianGrid strokeDasharray="3 3" stroke={grid} />
             <XAxis
               dataKey={xKey}
-              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tick={{ fontSize: 11, fill: tick }}
               tickLine={false}
               axisLine={false}
               interval={0}
@@ -74,15 +114,8 @@ function ChartCard({ title, data, xKey, yKey = "total", loading, onlyBar = false
               textAnchor={data.length > 4 ? "end" : "middle"}
               height={data.length > 4 ? 50 : 30}
             />
-            <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-            <Tooltip
-              contentStyle={{
-                border: "none",
-                borderRadius: "12px",
-                boxShadow: "0 4px 12px rgb(0 0 0 / .08)",
-                fontSize: "12px",
-              }}
-            />
+            <YAxis tick={{ fontSize: 11, fill: tick }} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={tooltip} />
             <Bar dataKey={yKey} radius={[6, 6, 0, 0]} maxBarSize={48}>
               {data.map((_, i) => (
                 <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
@@ -107,14 +140,7 @@ function ChartCard({ title, data, xKey, yKey = "total", loading, onlyBar = false
                 <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
               ))}
             </Pie>
-            <Tooltip
-              contentStyle={{
-                border: "none",
-                borderRadius: "12px",
-                boxShadow: "0 4px 12px rgb(0 0 0 / .08)",
-                fontSize: "12px",
-              }}
-            />
+            <Tooltip contentStyle={tooltip} />
             <Legend
               iconType="circle"
               iconSize={8}
@@ -127,15 +153,9 @@ function ChartCard({ title, data, xKey, yKey = "total", loading, onlyBar = false
   );
 }
 
-const tooltipStyle = {
-  border: "none",
-  borderRadius: "12px",
-  boxShadow: "0 4px 12px rgb(0 0 0 / .08)",
-  fontSize: "12px",
-};
-
 function DailyChart({ data, loading }) {
   const [type, setType] = useState("area");
+  const { grid, tick, tooltip } = useChartTheme();
 
   const fmt = (d) => {
     const [, m, day] = d.split("-");
@@ -194,23 +214,23 @@ function DailyChart({ data, loading }) {
                 <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <CartesianGrid strokeDasharray="3 3" stroke={grid} />
             <XAxis
               dataKey="date"
               tickFormatter={fmt}
-              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tick={{ fontSize: 11, fill: tick }}
               tickLine={false}
               axisLine={false}
               interval={tickInterval}
             />
             <YAxis
               allowDecimals={false}
-              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tick={{ fontSize: 11, fill: tick }}
               tickLine={false}
               axisLine={false}
             />
             <Tooltip
-              contentStyle={tooltipStyle}
+              contentStyle={tooltip}
               labelFormatter={(d) => {
                 const [y, m, day] = d.split("-");
                 return `${day}/${m}/${y}`;
@@ -231,23 +251,23 @@ function DailyChart({ data, loading }) {
       ) : (
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <CartesianGrid strokeDasharray="3 3" stroke={grid} />
             <XAxis
               dataKey="date"
               tickFormatter={fmt}
-              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tick={{ fontSize: 11, fill: tick }}
               tickLine={false}
               axisLine={false}
               interval={tickInterval}
             />
             <YAxis
               allowDecimals={false}
-              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tick={{ fontSize: 11, fill: tick }}
               tickLine={false}
               axisLine={false}
             />
             <Tooltip
-              contentStyle={tooltipStyle}
+              contentStyle={tooltip}
               labelFormatter={(d) => {
                 const [y, m, day] = d.split("-");
                 return `${day}/${m}/${y}`;
@@ -332,6 +352,14 @@ export default function AnalyticsPage() {
               />
             </div>
           </div>
+          <button
+            onClick={() => exportCsv(data, range)}
+            disabled={loading}
+            className="ml-auto flex items-center gap-2 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-40 transition"
+          >
+            <Download size={14} />
+            Exportar CSV
+          </button>
         </div>
 
         {/* Volume diário */}

@@ -59,6 +59,7 @@ model User {
   resolvedRequests   PasswordResetRequest[] @relation("ResolvedRequests")
 
   @@index([departmentId])
+  @@index([role, active])
 }
 
 model PasswordResetRequest {
@@ -131,6 +132,8 @@ model Ticket {
   @@index([assignedTechId])
   @@index([openedById])
   @@index([openedAt])
+  @@index([categoryId])
+  @@index([departmentId])
 }
 
 model TicketHistory {

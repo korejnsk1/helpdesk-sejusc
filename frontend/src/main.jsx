@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { SocketProvider } from "./context/SocketContext";
+import { ToastProvider } from "./context/ToastContext";
 import HomePage from "./pages/HomePage";
 import NewTicketPage from "./pages/NewTicketPage";
 import TrackPage from "./pages/TrackPage";
@@ -32,15 +34,12 @@ function Protected({ children, adminOnly = false, staffOnly = false }) {
 
   if (!user) return <Navigate to={`/login${loc.pathname !== "/" ? `?next=${encodeURIComponent(loc.pathname)}` : ""}`} replace />;
 
-  // Troca de senha obrigatória
   if (user.mustChangePassword && loc.pathname !== "/trocar-senha") {
     return <Navigate to="/trocar-senha" replace />;
   }
 
-  // Rotas admin-only
   if (adminOnly && user.role !== "ADMIN") return <Navigate to="/painel" replace />;
 
-  // Rotas staff-only: USER simples vai para o perfil
   if (staffOnly && !STAFF_ROLES.includes(user.role)) {
     return <Navigate to="/perfil" replace />;
   }
@@ -53,30 +52,34 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            {/* Público */}
-            <Route path="/" element={<HomePage />} />
-            <Route path="/novo-chamado" element={<Protected><NewTicketPage /></Protected>} />
-            <Route path="/acompanhar/:ticketNumber" element={<TrackPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/cadastro" element={<RegisterPage />} />
-            <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
+          <SocketProvider>
+            <ToastProvider>
+              <Routes>
+                {/* Público */}
+                <Route path="/" element={<HomePage />} />
+                <Route path="/novo-chamado" element={<Protected><NewTicketPage /></Protected>} />
+                <Route path="/acompanhar/:ticketNumber" element={<TrackPage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/cadastro" element={<RegisterPage />} />
+                <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
 
-            {/* Qualquer usuário logado */}
-            <Route path="/perfil" element={<Protected><ProfilePage /></Protected>} />
-            <Route path="/trocar-senha" element={<Protected><ChangePasswordPage /></Protected>} />
+                {/* Qualquer usuário logado */}
+                <Route path="/perfil" element={<Protected><ProfilePage /></Protected>} />
+                <Route path="/trocar-senha" element={<Protected><ChangePasswordPage /></Protected>} />
 
-            {/* Staff (TECHNICIAN, MONITOR, ADMIN) */}
-            <Route path="/painel" element={<Protected staffOnly><DashboardPage /></Protected>} />
-            <Route path="/painel/chamado/:id" element={<Protected staffOnly><TicketDetailPage /></Protected>} />
-            <Route path="/painel/relatorios" element={<Protected staffOnly><AnalyticsPage /></Protected>} />
+                {/* Staff (TECHNICIAN, MONITOR, ADMIN) */}
+                <Route path="/painel" element={<Protected staffOnly><DashboardPage /></Protected>} />
+                <Route path="/painel/chamado/:id" element={<Protected staffOnly><TicketDetailPage /></Protected>} />
+                <Route path="/painel/relatorios" element={<Protected staffOnly><AnalyticsPage /></Protected>} />
 
-            {/* Admin only */}
-            <Route path="/painel/usuarios" element={<Protected adminOnly><UsersPage /></Protected>} />
-            <Route path="/painel/setores" element={<Protected adminOnly><DepartmentsPage /></Protected>} />
+                {/* Admin only */}
+                <Route path="/painel/usuarios" element={<Protected adminOnly><UsersPage /></Protected>} />
+                <Route path="/painel/setores" element={<Protected adminOnly><DepartmentsPage /></Protected>} />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </ToastProvider>
+          </SocketProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>

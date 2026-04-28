@@ -161,7 +161,7 @@ export default function NewTicketPage() {
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
-                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-500" />
               </div>
             )}
           </div>
@@ -309,6 +309,8 @@ export default function NewTicketPage() {
                 <AnyDeskStep
                   value={form.anyDeskCode}
                   onChange={(v) => setForm({ ...form, anyDeskCode: v })}
+                  description={form.freeTextDescription}
+                  onDescriptionChange={(v) => setForm({ ...form, freeTextDescription: v })}
                 />
               )}
 
@@ -404,7 +406,7 @@ export default function NewTicketPage() {
   );
 }
 
-function AnyDeskStep({ value, onChange }) {
+function AnyDeskStep({ value, onChange, description, onDescriptionChange }) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 p-4 space-y-2">
@@ -433,9 +435,19 @@ function AnyDeskStep({ value, onChange }) {
           Apenas números, como exibido no AnyDesk
         </p>
       </div>
+      <div>
+        <label className="field-label">Descreva o problema <span className="text-slate-400 dark:text-gray-500 font-normal">(opcional)</span></label>
+        <textarea
+          rows={3}
+          className="field-input resize-none"
+          placeholder="Ex: Chrome não abre, preciso instalar um programa."
+          value={description}
+          onChange={(e) => onDescriptionChange(e.target.value)}
+        />
+      </div>
       <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-4 py-3 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
         <span className="text-base shrink-0 mt-0.5">⚠️</span>
-        <span>Ao abrir este chamado, deixe o AnyDesk aberto e aceite a solicitação de conexão assim que o técnico entrar em contato.</span>
+        <span>Ao abrir este chamado, deixe o AnyDesk aberto e aceite a solicitação de conexão assim que o técnico listar o chamado como em andamento.</span>
       </div>
     </div>
   );

@@ -38,7 +38,7 @@ export function Field({ label, error, children, className = "" }) {
     <div className={className}>
       {label && <label className="field-label">{label}</label>}
       {children}
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );
 }
