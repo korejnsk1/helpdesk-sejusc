@@ -151,7 +151,7 @@ async function main() {
   const adminHash = await bcrypt.hash("admin@2025", 10);
 
   const nss = await prisma.unit.findUnique({
-    where: { name: "NSS - Núcleo de Suporte de Sistemas" },
+    where: { name: "NSS" },
   });
   const nssDept = await prisma.department.findFirst({
     where: { name: { contains: "NSS" } },
@@ -161,7 +161,7 @@ async function main() {
     where: { cpf: adminCpf },
     create: {
       cpf: adminCpf,
-      name: "Administrador SEJUSC",
+      name: "Guilherme Oliveira",
       passwordHash: adminHash,
       role: "ADMIN",
       active: true,
@@ -169,6 +169,7 @@ async function main() {
       departmentId: nssDept?.id || null,
     },
     update: {
+      name: "Guilherme Oliveira",
       role: "ADMIN",
       active: true,
       unitId: nss?.id || null,
