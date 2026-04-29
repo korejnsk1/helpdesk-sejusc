@@ -165,6 +165,34 @@ export async function ticketsByDay(req, res) {
   res.json(result);
 }
 
+export async function ticketsByMonth(req, res) {
+  const start = req.query.from ? new Date(req.query.from) : new Date(Date.now() - 365 * 86400000);
+  const end   = req.query.to   ? new Date(req.query.to)   : new Date();
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  const rows = await prisma.$queryRaw`
+    SELECT
+      DATE_FORMAT(openedAt, '%Y-%m') AS month,
+      COUNT(*) AS total,
+      SUM(status = 'COMPLETED') AS completed,
+      SUM(status = 'OPEN') AS open_count,
+      SUM(status = 'IN_PROGRESS') AS in_progress
+    FROM Ticket
+    WHERE openedAt >= ${start} AND openedAt <= ${end}
+    GROUP BY DATE_FORMAT(openedAt, '%Y-%m')
+    ORDER BY month ASC
+  `;
+
+  res.json(rows.map((r) => ({
+    month:      r.month,
+    total:      Number(r.total),
+    completed:  Number(r.completed),
+    open:       Number(r.open_count),
+    inProgress: Number(r.in_progress),
+  })));
+}
+
 export async function otherReclassified(req, res) {
   const where = {
     ...parseRange(req.query),

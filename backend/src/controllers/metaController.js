@@ -16,7 +16,7 @@ export async function listUnits(req, res) {
 export async function listTechnicians(req, res) {
   const techs = await prisma.user.findMany({
     where: { active: true, role: { in: ["TECHNICIAN", "MONITOR", "ADMIN"] } },
-    select: { id: true, name: true, unitId: true, unit: { select: { name: true } } },
+    select: { id: true, name: true, role: true, unitId: true, unit: { select: { name: true } } },
     orderBy: { name: "asc" },
   });
   res.json(techs);

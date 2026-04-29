@@ -103,7 +103,7 @@ export default function TicketDetailPage() {
   const isMonitor = ["MONITOR", "ADMIN"].includes(user?.role);
   const isAdmin   = user?.role === "ADMIN";
   const filteredTechs = form.unitId
-    ? techs.filter((t) => t.unitId === Number(form.unitId))
+    ? techs.filter((t) => t.unitId === Number(form.unitId) || ["ADMIN", "MONITOR"].includes(t.role))
     : techs;
 
   return (

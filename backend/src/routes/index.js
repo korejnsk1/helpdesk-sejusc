@@ -19,7 +19,7 @@ import {
 import {
   ticketsByUnit, ticketsByTechnician, ticketsByDepartment,
   ticketsByCategory, avgResolutionByCategory, otherReclassified,
-  topRequesters, ticketsByDay,
+  topRequesters, ticketsByDay, ticketsByMonth,
 } from "../controllers/analyticsController.js";
 import { authRequired, optionalAuth, requireRole } from "../middleware/auth.js";
 
@@ -99,5 +99,6 @@ router.get("/analytics/avg-resolution", ...analyticsAccess, avgResolutionByCateg
 router.get("/analytics/other",          ...analyticsAccess, otherReclassified);
 router.get("/analytics/top-requesters", ...analyticsAccess, topRequesters);
 router.get("/analytics/by-day",         ...analyticsAccess, ticketsByDay);
+router.get("/analytics/by-month",       ...analyticsAccess, ticketsByMonth);
 
 export default router;

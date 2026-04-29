@@ -7,27 +7,54 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
   PieChart, Pie, Legend, AreaChart, Area,
 } from "recharts";
-import { Calendar, BarChart2, PieChart as PieChartIcon, TrendingUp, Download } from "lucide-react";
+import { Calendar, BarChart2, PieChart as PieChartIcon, TrendingUp, Download, FileText } from "lucide-react";
 
-function exportCsv(data, range) {
+// ── Month helpers ─────────────────────────────────────────────────────────────
+const MONTH_NAMES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+function fmtMonth(ym) {
+  if (!ym) return "";
+  const [y, m] = ym.split("-");
+  return `${MONTH_NAMES[Number(m) - 1]}/${y.slice(2)}`;
+}
+
+function fmtMonthLong(ym) {
+  if (!ym) return "";
+  const [y, m] = ym.split("-");
+  return `${MONTH_NAMES[Number(m) - 1]} de ${y}`;
+}
+
+// Strips diacritics for jsPDF default fonts
+function ascii(s) {
+  return String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+function exportCsv(data, monthly, range) {
   const sections = [
-    { title: "Por Unidade",     rows: data.byUnit  || [], cols: ["unit", "total"] },
-    { title: "Por Técnico",     rows: data.byTech  || [], cols: ["technician", "total"] },
-    { title: "Por Departamento",rows: data.byDept  || [], cols: ["department", "total"] },
-    { title: "Por Categoria",   rows: data.byCat   || [], cols: ["category", "total"] },
-    { title: "Mais Solicitantes", rows: data.topRequesters || [], cols: ["name", "total"] },
-    { title: "Tempo Médio (min)", rows: data.avg   || [], cols: ["category", "avgMinutes"] },
+    {
+      title: "Resumo Mensal",
+      rows: monthly || [],
+      cols: ["month", "total", "completed", "inProgress", "open"],
+      headers: ["Mes", "Total", "Concluidos", "Em Atendimento", "Abertos"],
+    },
+    { title: "Por Unidade",      rows: data.byUnit  || [], cols: ["unit", "total"],          headers: ["Unidade", "Total"] },
+    { title: "Por Tecnico",      rows: data.byTech  || [], cols: ["technician", "total"],     headers: ["Tecnico", "Total"] },
+    { title: "Por Departamento", rows: data.byDept  || [], cols: ["department", "total"],     headers: ["Departamento", "Total"] },
+    { title: "Por Categoria",    rows: data.byCat   || [], cols: ["category", "total"],       headers: ["Categoria", "Total"] },
+    { title: "Mais Solicitantes",rows: data.topRequesters || [], cols: ["name", "total"],     headers: ["Nome", "Total"] },
+    { title: "Tempo Medio (min)",rows: data.avg     || [], cols: ["category", "avgMinutes"],  headers: ["Categoria", "Media (min)"] },
   ];
 
-  const lines = [`Relatório HelpDesk SEJUSC — ${range.from} a ${range.to}`, ""];
-  for (const { title, rows, cols } of sections) {
+  const lines = [`Relatorio HelpDesk SEJUSC — ${range.from} a ${range.to}`, ""];
+  for (const { title, rows, cols, headers } of sections) {
     lines.push(title);
-    lines.push(cols.join(";"));
+    lines.push(headers.join(";"));
     for (const row of rows) lines.push(cols.map((c) => row[c] ?? "").join(";"));
     lines.push("");
   }
 
-  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
@@ -36,6 +63,201 @@ function exportCsv(data, range) {
   URL.revokeObjectURL(url);
 }
 
+// ── PDF export ────────────────────────────────────────────────────────────────
+async function exportPdf(data, monthly, range) {
+  const { jsPDF } = await import("jspdf");
+  const { autoTable } = await import("jspdf-autotable");
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W      = doc.internal.pageSize.getWidth();
+  const H      = doc.internal.pageSize.getHeight();
+  const MARGIN = 14;
+  const CW     = W - MARGIN * 2;
+
+  const BLUE  = [37, 99, 235];
+  const SLATE = [71, 85, 105];
+  const DARK  = [15, 23, 42];
+  const LIGHT = [241, 245, 249];
+
+  const tableStyle = {
+    margin: { left: MARGIN, right: MARGIN },
+    headStyles: { fillColor: BLUE, textColor: 255, fontSize: 9, fontStyle: "bold" },
+    bodyStyles: { textColor: DARK, fontSize: 9 },
+    alternateRowStyles: { fillColor: LIGHT },
+    styles: { cellPadding: 2.5, font: "helvetica" },
+  };
+
+  function checkPage(needed = 30) {
+    if (curY + needed > H - 16) { doc.addPage(); curY = 14; }
+  }
+
+  function sectionTitle(title) {
+    checkPage(14);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...BLUE);
+    doc.text(ascii(title), MARGIN, curY);
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, curY + 1.5, MARGIN + CW, curY + 1.5);
+    curY += 7;
+  }
+
+  function horizBars(rows, labelKey, valueKey, maxRows = 15) {
+    const slice   = rows.slice(0, maxRows);
+    const maxVal  = Math.max(...slice.map((d) => d[valueKey]), 1);
+    const barH    = 5.5;
+    const barMaxW = CW * 0.42;
+    const labelW  = CW * 0.44;
+
+    checkPage(slice.length * (barH + 3) + 6);
+
+    for (const item of slice) {
+      const barW = (item[valueKey] / maxVal) * barMaxW;
+      const label = ascii(String(item[labelKey])).substring(0, 24);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...SLATE);
+      doc.text(label, MARGIN, curY + barH - 1.2);
+
+      // track
+      doc.setFillColor(...LIGHT);
+      doc.roundedRect(MARGIN + labelW, curY, barMaxW, barH, 1, 1, "F");
+
+      // bar
+      doc.setFillColor(...BLUE);
+      if (barW > 0.5) doc.roundedRect(MARGIN + labelW, curY, barW, barH, 1, 1, "F");
+
+      // value
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...DARK);
+      doc.text(String(item[valueKey]), MARGIN + labelW + barMaxW + 2.5, curY + barH - 1.2);
+
+      curY += barH + 3;
+    }
+    curY += 5;
+  }
+
+  let curY = 14;
+
+  // ── Header bar ──────────────────────────────────────────────────────────────
+  doc.setFillColor(...BLUE);
+  doc.rect(0, 0, W, 7, "F");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(...DARK);
+  doc.text("HelpDesk SEJUSC", MARGIN, 21);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...SLATE);
+  doc.text("Relatorio de Chamados", MARGIN, 29);
+  doc.text(`Periodo: ${range.from}  ate  ${range.to}`, MARGIN, 36);
+  doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, MARGIN, 43);
+
+  curY = 54;
+
+  // ── Resumo Mensal ────────────────────────────────────────────────────────────
+  if (monthly.length > 0) {
+    sectionTitle("Resumo Mensal");
+    autoTable(doc, {
+      startY: curY,
+      head: [["Mes", "Total", "Concluidos", "Em Atend.", "Abertos"]],
+      body: monthly.map((m) => [
+        ascii(fmtMonthLong(m.month)),
+        m.total,
+        m.completed,
+        m.inProgress,
+        m.open,
+      ]),
+      ...tableStyle,
+      columnStyles: {
+        0: { cellWidth: 45 },
+        1: { cellWidth: 20, halign: "right" },
+        2: { cellWidth: 28, halign: "right" },
+        3: { cellWidth: 28, halign: "right" },
+        4: { cellWidth: 22, halign: "right" },
+      },
+    });
+    curY = doc.lastAutoTable.finalY + 12;
+  }
+
+  // ── Por Unidade ──────────────────────────────────────────────────────────────
+  if (data.byUnit?.length > 0) {
+    sectionTitle("Chamados por Unidade");
+    horizBars(data.byUnit, "unit", "total");
+  }
+
+  // ── Por Tecnico ──────────────────────────────────────────────────────────────
+  if (data.byTech?.length > 0) {
+    sectionTitle("Chamados por Tecnico");
+    horizBars(data.byTech, "technician", "total");
+  }
+
+  // ── Por Categoria ─────────────────────────────────────────────────────────────
+  if (data.byCat?.length > 0) {
+    sectionTitle("Chamados por Categoria");
+    horizBars(data.byCat, "category", "total");
+  }
+
+  // ── Por Departamento ─────────────────────────────────────────────────────────
+  if (data.byDept?.length > 0) {
+    sectionTitle("Por Departamento");
+    horizBars(data.byDept, "department", "total");
+  }
+
+  // ── Mais Solicitantes ────────────────────────────────────────────────────────
+  if (data.topRequesters?.length > 0) {
+    sectionTitle("Mais Solicitantes");
+    checkPage(data.topRequesters.length * 8 + 16);
+    autoTable(doc, {
+      startY: curY,
+      head: [["Nome", "Total"]],
+      body: data.topRequesters.map((r) => [ascii(r.name), r.total]),
+      ...tableStyle,
+      columnStyles: { 1: { cellWidth: 20, halign: "right" } },
+    });
+    curY = doc.lastAutoTable.finalY + 12;
+  }
+
+  // ── Tempo Medio ───────────────────────────────────────────────────────────────
+  if (data.avg?.length > 0) {
+    sectionTitle("Tempo Medio de Resolucao (minutos)");
+    checkPage(data.avg.length * 8 + 16);
+    autoTable(doc, {
+      startY: curY,
+      head: [["Categoria", "Media (min)", "Amostras"]],
+      body: data.avg.map((r) => [ascii(r.category), r.avgMinutes, r.samples]),
+      ...tableStyle,
+      columnStyles: {
+        1: { cellWidth: 30, halign: "right" },
+        2: { cellWidth: 25, halign: "right" },
+      },
+    });
+  }
+
+  // ── Footer ────────────────────────────────────────────────────────────────────
+  const pages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `Pagina ${p} de ${pages}  —  HelpDesk SEJUSC`,
+      W / 2,
+      H - 7,
+      { align: "center" }
+    );
+  }
+
+  doc.save(`relatorio-helpdesk-${range.from}-${range.to}.pdf`);
+}
+
+// ── Chart helpers ─────────────────────────────────────────────────────────────
 const PALETTE = [
   "#2563eb", "#7c3aed", "#059669", "#d97706", "#dc2626",
   "#0891b2", "#9333ea", "#16a34a", "#ea580c", "#0284c7",
@@ -93,9 +315,7 @@ function ChartCard({ title, data, xKey, yKey = "total", loading, onlyBar = false
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-40">
-          <Spinner />
-        </div>
+        <div className="flex items-center justify-center h-40"><Spinner /></div>
       ) : data.length === 0 ? (
         <div className="flex items-center justify-center h-40 text-sm text-slate-400 dark:text-gray-500">
           Sem dados no período
@@ -117,9 +337,7 @@ function ChartCard({ title, data, xKey, yKey = "total", loading, onlyBar = false
             <YAxis tick={{ fontSize: 11, fill: tick }} tickLine={false} axisLine={false} />
             <Tooltip contentStyle={tooltip} />
             <Bar dataKey={yKey} radius={[6, 6, 0, 0]} maxBarSize={48}>
-              {data.map((_, i) => (
-                <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-              ))}
+              {data.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -136,16 +354,10 @@ function ChartCard({ title, data, xKey, yKey = "total", loading, onlyBar = false
               outerRadius={90}
               paddingAngle={2}
             >
-              {data.map((_, i) => (
-                <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-              ))}
+              {data.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
             </Pie>
             <Tooltip contentStyle={tooltip} />
-            <Legend
-              iconType="circle"
-              iconSize={8}
-              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-            />
+            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
           </PieChart>
         </ResponsiveContainer>
       )}
@@ -157,11 +369,7 @@ function DailyChart({ data, loading }) {
   const [type, setType] = useState("area");
   const { grid, tick, tooltip } = useChartTheme();
 
-  const fmt = (d) => {
-    const [, m, day] = d.split("-");
-    return `${day}/${m}`;
-  };
-
+  const fmt = (d) => { const [, m, day] = d.split("-"); return `${day}/${m}`; };
   const tickInterval = data.length > 20 ? Math.floor(data.length / 10) : 0;
 
   return (
@@ -174,28 +382,20 @@ function DailyChart({ data, loading }) {
           </h2>
         </div>
         <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 dark:bg-gray-800 p-0.5">
-          <button
-            onClick={() => setType("area")}
-            title="Área"
-            className={`rounded-md p-1.5 transition ${
-              type === "area"
-                ? "bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400"
-                : "text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-            }`}
-          >
-            <TrendingUp size={13} />
-          </button>
-          <button
-            onClick={() => setType("bar")}
-            title="Barras"
-            className={`rounded-md p-1.5 transition ${
-              type === "bar"
-                ? "bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400"
-                : "text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-            }`}
-          >
-            <BarChart2 size={13} />
-          </button>
+          {[["area", TrendingUp, "Área"], ["bar", BarChart2, "Barras"]].map(([v, Icon, label]) => (
+            <button
+              key={v}
+              onClick={() => setType(v)}
+              title={label}
+              className={`rounded-md p-1.5 transition ${
+                type === v
+                  ? "bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400"
+                  : "text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+              }`}
+            >
+              <Icon size={13} />
+            </button>
+          ))}
         </div>
       </div>
 
@@ -215,63 +415,26 @@ function DailyChart({ data, loading }) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={grid} />
-            <XAxis
-              dataKey="date"
-              tickFormatter={fmt}
-              tick={{ fontSize: 11, fill: tick }}
-              tickLine={false}
-              axisLine={false}
-              interval={tickInterval}
-            />
-            <YAxis
-              allowDecimals={false}
-              tick={{ fontSize: 11, fill: tick }}
-              tickLine={false}
-              axisLine={false}
-            />
+            <XAxis dataKey="date" tickFormatter={fmt} tick={{ fontSize: 11, fill: tick }} tickLine={false} axisLine={false} interval={tickInterval} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: tick }} tickLine={false} axisLine={false} />
             <Tooltip
               contentStyle={tooltip}
-              labelFormatter={(d) => {
-                const [y, m, day] = d.split("-");
-                return `${day}/${m}/${y}`;
-              }}
+              labelFormatter={(d) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; }}
               formatter={(v) => [v, "Chamados"]}
             />
-            <Area
-              type="monotone"
-              dataKey="total"
-              stroke="#2563eb"
-              strokeWidth={2}
-              fill="url(#areaGrad)"
-              dot={data.length <= 14 ? { r: 3, fill: "#2563eb" } : false}
-              activeDot={{ r: 5 }}
-            />
+            <Area type="monotone" dataKey="total" stroke="#2563eb" strokeWidth={2} fill="url(#areaGrad)"
+              dot={data.length <= 14 ? { r: 3, fill: "#2563eb" } : false} activeDot={{ r: 5 }} />
           </AreaChart>
         </ResponsiveContainer>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={grid} />
-            <XAxis
-              dataKey="date"
-              tickFormatter={fmt}
-              tick={{ fontSize: 11, fill: tick }}
-              tickLine={false}
-              axisLine={false}
-              interval={tickInterval}
-            />
-            <YAxis
-              allowDecimals={false}
-              tick={{ fontSize: 11, fill: tick }}
-              tickLine={false}
-              axisLine={false}
-            />
+            <XAxis dataKey="date" tickFormatter={fmt} tick={{ fontSize: 11, fill: tick }} tickLine={false} axisLine={false} interval={tickInterval} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: tick }} tickLine={false} axisLine={false} />
             <Tooltip
               contentStyle={tooltip}
-              labelFormatter={(d) => {
-                const [y, m, day] = d.split("-");
-                return `${day}/${m}/${y}`;
-              }}
+              labelFormatter={(d) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; }}
               formatter={(v) => [v, "Chamados"]}
             />
             <Bar dataKey="total" radius={[4, 4, 0, 0]} maxBarSize={32} fill="#2563eb" />
@@ -282,15 +445,72 @@ function DailyChart({ data, loading }) {
   );
 }
 
+function MonthlyChart({ data, loading }) {
+  const { grid, tick, tooltip } = useChartTheme();
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Calendar size={15} className="text-brand-600" />
+        <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100">
+          Volume mensal de chamados
+        </h2>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-48"><Spinner /></div>
+      ) : data.length === 0 ? (
+        <div className="flex items-center justify-center h-48 text-sm text-slate-400 dark:text-gray-500">
+          Sem dados no período
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={grid} />
+            <XAxis
+              dataKey="month"
+              tickFormatter={fmtMonth}
+              tick={{ fontSize: 11, fill: tick }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: tick }} tickLine={false} axisLine={false} />
+            <Tooltip
+              contentStyle={tooltip}
+              labelFormatter={fmtMonthLong}
+              formatter={(v, name) => {
+                const labels = { completed: "Concluídos", inProgress: "Em Atendimento", open: "Abertos" };
+                return [v, labels[name] ?? name];
+              }}
+            />
+            <Legend
+              iconType="circle"
+              iconSize={8}
+              wrapperStyle={{ fontSize: 11 }}
+              formatter={(v) => ({ completed: "Concluídos", inProgress: "Em Atend.", open: "Abertos" }[v] ?? v)}
+            />
+            <Bar dataKey="completed"  name="completed"  stackId="a" fill="#059669" />
+            <Bar dataKey="inProgress" name="inProgress" stackId="a" fill="#d97706" />
+            <Bar dataKey="open"       name="open"       stackId="a" fill="#2563eb" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today     = new Date().toISOString().slice(0, 10);
   const thirtyAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
-  const [range, setRange] = useState({ from: thirtyAgo, to: today });
-  const [data, setData] = useState({});
-  const [daily, setDaily] = useState([]);
-  const [others, setOthers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [range,    setRange]   = useState({ from: thirtyAgo, to: today });
+  const [data,     setData]    = useState({});
+  const [daily,    setDaily]   = useState([]);
+  const [monthly,  setMonthly] = useState([]);
+  const [others,   setOthers]  = useState([]);
+  const [loading,  setLoading] = useState(true);
+  const [pdfBusy,  setPdfBusy] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -304,19 +524,30 @@ export default function AnalyticsPage() {
       api.get(`/analytics/other${q}`),
       api.get(`/analytics/top-requesters${q}&limit=10`),
       api.get(`/analytics/by-day${q}`),
-    ]).then(([u, t, d, c, a, o, r, day]) => {
+      api.get(`/analytics/by-month${q}`),
+    ]).then(([u, t, d, c, a, o, r, day, mon]) => {
       setData({
-        byUnit: u.data,
-        byTech: t.data,
-        byDept: d.data,
-        byCat: c.data,
-        avg: a.data,
+        byUnit:        u.data,
+        byTech:        t.data,
+        byDept:        d.data,
+        byCat:         c.data,
+        avg:           a.data,
         topRequesters: r.data.map((x) => ({ name: x.name, total: x.total })),
       });
       setOthers(o.data);
       setDaily(day.data);
+      setMonthly(mon.data);
     }).finally(() => setLoading(false));
   }, [range]);
+
+  async function handleExportPdf() {
+    setPdfBusy(true);
+    try {
+      await exportPdf(data, monthly, range);
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
@@ -352,15 +583,30 @@ export default function AnalyticsPage() {
               />
             </div>
           </div>
-          <button
-            onClick={() => exportCsv(data, range)}
-            disabled={loading}
-            className="ml-auto flex items-center gap-2 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-40 transition"
-          >
-            <Download size={14} />
-            Exportar CSV
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => exportCsv(data, monthly, range)}
+              disabled={loading}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-40 transition"
+            >
+              <Download size={14} />
+              CSV
+            </button>
+            <button
+              onClick={handleExportPdf}
+              disabled={loading || pdfBusy}
+              className="flex items-center gap-2 rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/30 px-3.5 py-2 text-sm font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50 disabled:opacity-40 transition"
+            >
+              <FileText size={14} />
+              {pdfBusy ? "Gerando…" : "PDF"}
+            </button>
+          </div>
         </div>
+
+        {/* Volume mensal */}
+        {(monthly.length > 1 || loading) && (
+          <MonthlyChart data={monthly} loading={loading} />
+        )}
 
         {/* Volume diário */}
         <DailyChart data={daily} loading={loading} />

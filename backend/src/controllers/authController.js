@@ -35,10 +35,11 @@ export async function login(req, res) {
     { expiresIn }
   );
 
-  const isProduction = process.env.NODE_ENV === "production";
+  // secure=true só quando HTTPS estiver configurado
+  const secure = process.env.COOKIE_SECURE === "true";
   res.cookie("hd_token", token, {
     httpOnly: true,
-    secure: isProduction,
+    secure,
     sameSite: "strict",
     maxAge: 8 * 60 * 60 * 1000, // 8h em ms
   });

@@ -37,6 +37,7 @@ services:
       PORT: 3333
       CORS_ORIGIN: ${CORS_ORIGIN}
       FEEDBACK_ENABLED: ${FEEDBACK_ENABLED:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       NODE_ENV: ${NODE_ENV:-production}
     depends_on:
       mysql:
