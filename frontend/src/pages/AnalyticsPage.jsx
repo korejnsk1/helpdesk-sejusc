@@ -7,7 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
   PieChart, Pie, Legend, AreaChart, Area,
 } from "recharts";
-import { Calendar, BarChart2, PieChart as PieChartIcon, TrendingUp, Download, FileText } from "lucide-react";
+import { Calendar, BarChart2, PieChart as PieChartIcon, TrendingUp, FileText } from "lucide-react";
 
 // ── Month helpers ─────────────────────────────────────────────────────────────
 const MONTH_NAMES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -29,228 +29,276 @@ function ascii(s) {
   return String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-// ── CSV export ────────────────────────────────────────────────────────────────
-function exportCsv(data, monthly, range) {
-  const sections = [
-    {
-      title: "Resumo Mensal",
-      rows: monthly || [],
-      cols: ["month", "total", "completed", "inProgress", "open"],
-      headers: ["Mes", "Total", "Concluidos", "Em Atendimento", "Abertos"],
-    },
-    { title: "Por Unidade",      rows: data.byUnit  || [], cols: ["unit", "total"],          headers: ["Unidade", "Total"] },
-    { title: "Por Tecnico",      rows: data.byTech  || [], cols: ["technician", "total"],     headers: ["Tecnico", "Total"] },
-    { title: "Por Departamento", rows: data.byDept  || [], cols: ["department", "total"],     headers: ["Departamento", "Total"] },
-    { title: "Por Categoria",    rows: data.byCat   || [], cols: ["category", "total"],       headers: ["Categoria", "Total"] },
-    { title: "Mais Solicitantes",rows: data.topRequesters || [], cols: ["name", "total"],     headers: ["Nome", "Total"] },
-    { title: "Tempo Medio (min)",rows: data.avg     || [], cols: ["category", "avgMinutes"],  headers: ["Categoria", "Media (min)"] },
-  ];
-
-  const lines = [`Relatorio HelpDesk SEJUSC — ${range.from} a ${range.to}`, ""];
-  for (const { title, rows, cols, headers } of sections) {
-    lines.push(title);
-    lines.push(headers.join(";"));
-    for (const row of rows) lines.push(cols.map((c) => row[c] ?? "").join(";"));
-    lines.push("");
-  }
-
-  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
-  a.download = `relatorio-helpdesk-${range.from}-${range.to}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 // ── PDF export ────────────────────────────────────────────────────────────────
 async function exportPdf(data, monthly, range) {
   const { jsPDF } = await import("jspdf");
   const { autoTable } = await import("jspdf-autotable");
 
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const W      = doc.internal.pageSize.getWidth();
-  const H      = doc.internal.pageSize.getHeight();
-  const MARGIN = 14;
-  const CW     = W - MARGIN * 2;
+  const doc  = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W    = doc.internal.pageSize.getWidth();
+  const H    = doc.internal.pageSize.getHeight();
+  const M    = 12;
+  const GAP  = 5;
+  const CW   = W - M * 2;                      // 186 mm
+  const COL2 = (CW - GAP) / 2;                 // ~90.5 mm — 2-col tables
+  const COL3 = (CW - GAP * 2) / 3;             // ~58.7 mm — 3-col charts
+  const RX2  = M + COL2 + GAP;
+  const RX3  = [M, M + COL3 + GAP, M + (COL3 + GAP) * 2];
 
-  const BLUE  = [37, 99, 235];
-  const SLATE = [71, 85, 105];
-  const DARK  = [15, 23, 42];
-  const LIGHT = [241, 245, 249];
+  const BLUE   = [37, 99, 235];
+  const SLATE  = [71, 85, 105];
+  const DARK   = [15, 23, 42];
+  const LIGHT  = [241, 245, 249];
+  const COLORS = [
+    [37,99,235],[124,58,237],[5,150,105],[217,119,6],
+    [220,38,38],[8,145,178],[147,51,234],[22,163,74],
+  ];
 
-  const tableStyle = {
-    margin: { left: MARGIN, right: MARGIN },
-    headStyles: { fillColor: BLUE, textColor: 255, fontSize: 9, fontStyle: "bold" },
-    bodyStyles: { textColor: DARK, fontSize: 9 },
-    alternateRowStyles: { fillColor: LIGHT },
-    styles: { cellPadding: 2.5, font: "helvetica" },
-  };
+  let curY = 0;
 
-  function checkPage(needed = 30) {
-    if (curY + needed > H - 16) { doc.addPage(); curY = 14; }
+  function needPage(h) {
+    if (curY + h > H - 12) { doc.addPage(); curY = 12; }
   }
 
-  function sectionTitle(title) {
-    checkPage(14);
+  // ── Tabela compacta numa coluna ─────────────────────────────────────────────
+  function halfTable(startY, x, w, title, head, body, maxRows = 7) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFontSize(8);
     doc.setTextColor(...BLUE);
-    doc.text(ascii(title), MARGIN, curY);
+    doc.text(ascii(title), x, startY);
     doc.setDrawColor(...BLUE);
-    doc.setLineWidth(0.3);
-    doc.line(MARGIN, curY + 1.5, MARGIN + CW, curY + 1.5);
-    curY += 7;
+    doc.setLineWidth(0.2);
+    doc.line(x, startY + 1.2, x + w, startY + 1.2);
+
+    autoTable(doc, {
+      startY: startY + 4,
+      head,
+      body: body.slice(0, maxRows),
+      margin: { left: x, right: W - x - w },
+      tableWidth: w,
+      headStyles: { fillColor: BLUE, textColor: 255, fontSize: 7.5, fontStyle: "bold" },
+      bodyStyles: { textColor: DARK, fontSize: 7.5 },
+      alternateRowStyles: { fillColor: LIGHT },
+      styles: { cellPadding: 1.5, font: "helvetica" },
+      columnStyles: { [head[0].length - 1]: { cellWidth: 18, halign: "right" } },
+    });
+    return doc.lastAutoTable.finalY;
   }
 
-  function horizBars(rows, labelKey, valueKey, maxRows = 15) {
-    const slice   = rows.slice(0, maxRows);
-    const maxVal  = Math.max(...slice.map((d) => d[valueKey]), 1);
-    const barH    = 5.5;
-    const barMaxW = CW * 0.42;
-    const labelW  = CW * 0.44;
+  // ── Par de tabelas lado a lado ──────────────────────────────────────────────
+  function tableRow(lTitle, lHead, lBody, rTitle, rHead, rBody) {
+    const needed = Math.max(lBody.length, rBody?.length ?? 0, 1) * 6 + 22;
+    needPage(needed);
+    const sy   = curY;
+    const lEnd = halfTable(sy, M,   COL2, lTitle, lHead, lBody);
+    const rEnd = rBody?.length > 0
+      ? halfTable(sy, RX2, COL2, rTitle, rHead, rBody)
+      : sy;
+    curY = Math.max(lEnd, rEnd) + 5;
+  }
 
-    checkPage(slice.length * (barH + 3) + 6);
+  // ── Gráfico vertical numa coluna de 3 ──────────────────────────────────────
+  function vertChart(startY, colIdx, title, rows, labelKey, valueKey, maxRows = 6) {
+    const x     = RX3[colIdx];
+    const w     = COL3;
+    const slice = rows.slice(0, maxRows);
+    if (slice.length === 0) return startY + 52;
 
-    for (const item of slice) {
-      const barW = (item[valueKey] / maxVal) * barMaxW;
-      const label = ascii(String(item[labelKey])).substring(0, 24);
+    const maxVal = Math.max(...slice.map((d) => d[valueKey]), 1);
+    const chartH = 36;
+    const n      = slice.length;
+    const spacing = 2;
+    const barW   = Math.min(Math.floor((w - 10) / n) - spacing, 14);
+    const totalW = n * (barW + spacing) - spacing;
+    const ox     = x + (w - totalW) / 2;
+
+    // col title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...BLUE);
+    doc.text(ascii(title), x + w / 2, startY, { align: "center" });
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.2);
+    doc.line(x, startY + 1.2, x + w, startY + 1.2);
+
+    const chartTop = startY + 5;
+
+    // grid lines
+    for (let lvl = 1; lvl <= 3; lvl++) {
+      const ly = chartTop + chartH - (lvl / 3) * chartH;
+      doc.setDrawColor(235, 240, 245);
+      doc.setLineWidth(0.15);
+      doc.line(x + 3, ly, x + w, ly);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(5.5);
+      doc.setTextColor(185, 195, 210);
+      doc.text(String(Math.round((lvl / 3) * maxVal)), x + 2, ly + 1, { align: "right" });
+    }
+
+    // baseline
+    doc.setDrawColor(200, 210, 225);
+    doc.setLineWidth(0.3);
+    doc.line(x + 3, chartTop + chartH, x + w, chartTop + chartH);
+
+    slice.forEach((item, i) => {
+      const bh    = Math.max((item[valueKey] / maxVal) * chartH, 1.5);
+      const bx    = ox + i * (barW + spacing);
+      const by    = chartTop + chartH - bh;
+      const color = COLORS[i % COLORS.length];
+
+      doc.setFillColor(...color);
+      const r = Math.min(2, barW / 2);
+      doc.roundedRect(bx, by, barW, bh, r, r, "F");
+      doc.rect(bx, by + bh / 2, barW, bh / 2, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6);
+      doc.setTextColor(...DARK);
+      doc.text(String(item[valueKey]), bx + barW / 2, by - 1.5, { align: "center" });
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
+      doc.setFontSize(5.5);
       doc.setTextColor(...SLATE);
-      doc.text(label, MARGIN, curY + barH - 1.2);
+      const label = ascii(String(item[labelKey])).substring(0, 9);
+      doc.text(label, bx + barW / 2, chartTop + chartH + 4.5, { align: "center" });
+    });
 
-      // track
-      doc.setFillColor(...LIGHT);
-      doc.roundedRect(MARGIN + labelW, curY, barMaxW, barH, 1, 1, "F");
-
-      // bar
-      doc.setFillColor(...BLUE);
-      if (barW > 0.5) doc.roundedRect(MARGIN + labelW, curY, barW, barH, 1, 1, "F");
-
-      // value
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(...DARK);
-      doc.text(String(item[valueKey]), MARGIN + labelW + barMaxW + 2.5, curY + barH - 1.2);
-
-      curY += barH + 3;
-    }
-    curY += 5;
+    return chartTop + chartH + 9;
   }
 
-  let curY = 14;
+  // ── Grade de gráficos 3 colunas ─────────────────────────────────────────────
+  function chartRow(s0, s1, s2) {
+    needPage(58);
+    const sy = curY;
+    const ends = [s0, s1, s2].map((s, i) =>
+      s ? vertChart(sy, i, s.title, s.rows, s.lk, s.vk) : sy
+    );
+    curY = Math.max(...ends) + 4;
+  }
 
-  // ── Header bar ──────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HEADER
+  // ═══════════════════════════════════════════════════════════════════════════
   doc.setFillColor(...BLUE);
-  doc.rect(0, 0, W, 7, "F");
-
+  doc.rect(0, 0, W, 8, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
+  doc.setFontSize(15);
   doc.setTextColor(...DARK);
-  doc.text("HelpDesk SEJUSC", MARGIN, 21);
-
+  doc.text("HelpDesk SEJUSC", M, 19);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(8.5);
   doc.setTextColor(...SLATE);
-  doc.text("Relatorio de Chamados", MARGIN, 29);
-  doc.text(`Periodo: ${range.from}  ate  ${range.to}`, MARGIN, 36);
-  doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, MARGIN, 43);
+  doc.text("Relatorio de Chamados", M, 26);
+  doc.text(
+    `Periodo: ${range.from} a ${range.to}   |   Gerado: ${new Date().toLocaleDateString("pt-BR")}`,
+    M, 32,
+  );
+  curY = 40;
 
-  curY = 54;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PARTE SUPERIOR — TABELAS NUMÉRICAS
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // ── Resumo Mensal ────────────────────────────────────────────────────────────
+  // Resumo mensal (largura total)
   if (monthly.length > 0) {
-    sectionTitle("Resumo Mensal");
+    needPage(monthly.length * 6 + 18);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...BLUE);
+    doc.text("Resumo Mensal", M, curY);
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.25);
+    doc.line(M, curY + 1.2, M + CW, curY + 1.2);
+    curY += 4;
+
     autoTable(doc, {
       startY: curY,
       head: [["Mes", "Total", "Concluidos", "Em Atend.", "Abertos"]],
       body: monthly.map((m) => [
-        ascii(fmtMonthLong(m.month)),
-        m.total,
-        m.completed,
-        m.inProgress,
-        m.open,
+        ascii(fmtMonthLong(m.month)), m.total, m.completed, m.inProgress, m.open,
       ]),
-      ...tableStyle,
+      margin: { left: M, right: M },
+      headStyles: { fillColor: BLUE, textColor: 255, fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { textColor: DARK, fontSize: 8 },
+      alternateRowStyles: { fillColor: LIGHT },
+      styles: { cellPadding: 1.8, font: "helvetica" },
       columnStyles: {
-        0: { cellWidth: 45 },
+        0: { cellWidth: 46 },
         1: { cellWidth: 20, halign: "right" },
-        2: { cellWidth: 28, halign: "right" },
-        3: { cellWidth: 28, halign: "right" },
-        4: { cellWidth: 22, halign: "right" },
+        2: { cellWidth: 26, halign: "right" },
+        3: { cellWidth: 26, halign: "right" },
+        4: { cellWidth: 20, halign: "right" },
       },
     });
-    curY = doc.lastAutoTable.finalY + 12;
+    curY = doc.lastAutoTable.finalY + 6;
   }
 
-  // ── Por Unidade ──────────────────────────────────────────────────────────────
-  if (data.byUnit?.length > 0) {
-    sectionTitle("Chamados por Unidade");
-    horizBars(data.byUnit, "unit", "total");
-  }
+  // Pares de tabelas 2 colunas
+  tableRow(
+    "Chamados por Unidade",
+    [["Unidade", "Total"]],
+    (data.byUnit || []).map((r) => [ascii(r.unit), r.total]),
+    "Chamados por Tecnico",
+    [["Tecnico", "Total"]],
+    (data.byTech || []).map((r) => [ascii(r.technician), r.total]),
+  );
+  tableRow(
+    "Por Categoria",
+    [["Categoria", "Total"]],
+    (data.byCat || []).map((r) => [ascii(r.category), r.total]),
+    "Por Departamento",
+    [["Departamento", "Total"]],
+    (data.byDept || []).map((r) => [ascii(r.department), r.total]),
+  );
+  tableRow(
+    "Mais Solicitantes",
+    [["Nome", "Total"]],
+    (data.topRequesters || []).map((r) => [ascii(r.name), r.total]),
+    "Tempo Medio de Resolucao (min)",
+    [["Categoria", "Media"]],
+    (data.avg || []).map((r) => [ascii(r.category), r.avgMinutes]),
+  );
 
-  // ── Por Tecnico ──────────────────────────────────────────────────────────────
-  if (data.byTech?.length > 0) {
-    sectionTitle("Chamados por Tecnico");
-    horizBars(data.byTech, "technician", "total");
-  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SEPARADOR
+  // ═══════════════════════════════════════════════════════════════════════════
+  curY += 2;
+  doc.setFillColor(...BLUE);
+  doc.rect(M, curY, CW, 0.5, "F");
+  curY += 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...BLUE);
+  doc.text("Graficos", M, curY);
+  curY += 6;
 
-  // ── Por Categoria ─────────────────────────────────────────────────────────────
-  if (data.byCat?.length > 0) {
-    sectionTitle("Chamados por Categoria");
-    horizBars(data.byCat, "category", "total");
-  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PARTE INFERIOR — GRÁFICOS VERTICAIS (grade 3 colunas)
+  // ═══════════════════════════════════════════════════════════════════════════
+  chartRow(
+    { title: "Por Unidade",   rows: data.byUnit  || [], lk: "unit",       vk: "total" },
+    { title: "Por Tecnico",   rows: data.byTech  || [], lk: "technician", vk: "total" },
+    { title: "Por Categoria", rows: data.byCat   || [], lk: "category",   vk: "total" },
+  );
+  chartRow(
+    { title: "Por Departamento", rows: data.byDept  || [], lk: "department", vk: "total" },
+    { title: "Mais Solicitantes",rows: data.topRequesters || [], lk: "name", vk: "total" },
+    { title: "Tempo Medio (min)",rows: data.avg     || [], lk: "category",   vk: "avgMinutes" },
+  );
 
-  // ── Por Departamento ─────────────────────────────────────────────────────────
-  if (data.byDept?.length > 0) {
-    sectionTitle("Por Departamento");
-    horizBars(data.byDept, "department", "total");
-  }
-
-  // ── Mais Solicitantes ────────────────────────────────────────────────────────
-  if (data.topRequesters?.length > 0) {
-    sectionTitle("Mais Solicitantes");
-    checkPage(data.topRequesters.length * 8 + 16);
-    autoTable(doc, {
-      startY: curY,
-      head: [["Nome", "Total"]],
-      body: data.topRequesters.map((r) => [ascii(r.name), r.total]),
-      ...tableStyle,
-      columnStyles: { 1: { cellWidth: 20, halign: "right" } },
-    });
-    curY = doc.lastAutoTable.finalY + 12;
-  }
-
-  // ── Tempo Medio ───────────────────────────────────────────────────────────────
-  if (data.avg?.length > 0) {
-    sectionTitle("Tempo Medio de Resolucao (minutos)");
-    checkPage(data.avg.length * 8 + 16);
-    autoTable(doc, {
-      startY: curY,
-      head: [["Categoria", "Media (min)", "Amostras"]],
-      body: data.avg.map((r) => [ascii(r.category), r.avgMinutes, r.samples]),
-      ...tableStyle,
-      columnStyles: {
-        1: { cellWidth: 30, halign: "right" },
-        2: { cellWidth: 25, halign: "right" },
-      },
-    });
-  }
-
-  // ── Footer ────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FOOTER
+  // ═══════════════════════════════════════════════════════════════════════════
   const pages = doc.internal.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
     doc.text(
       `Pagina ${p} de ${pages}  —  HelpDesk SEJUSC`,
-      W / 2,
-      H - 7,
-      { align: "center" }
+      W / 2, H - 6, { align: "center" },
     );
   }
 
@@ -584,14 +632,6 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <button
-              onClick={() => exportCsv(data, monthly, range)}
-              disabled={loading}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-40 transition"
-            >
-              <Download size={14} />
-              CSV
-            </button>
             <button
               onClick={handleExportPdf}
               disabled={loading || pdfBusy}
