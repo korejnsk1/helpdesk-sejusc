@@ -323,9 +323,13 @@ export default function NewTicketPage() {
                     onChange={(e) => setForm({ ...form, freeTextDescription: e.target.value })}
                     autoFocus
                   />
-                  <p className="mt-1 text-xs text-slate-400 dark:text-gray-500">
-                    {form.freeTextDescription.length} / mínimo 5 caracteres
-                  </p>
+                  {form.freeTextDescription.length > 0 && (
+                    <p className={`mt-1 text-xs ${form.freeTextDescription.length < 5 ? "text-amber-600 dark:text-amber-400" : "text-slate-400 dark:text-gray-500"}`}>
+                      {form.freeTextDescription.length < 5
+                        ? `${form.freeTextDescription.length} / 5 mínimo`
+                        : `${form.freeTextDescription.length} caracteres`}
+                    </p>
+                  )}
                 </div>
               )}
 

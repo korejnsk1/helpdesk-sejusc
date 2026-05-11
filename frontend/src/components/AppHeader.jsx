@@ -5,7 +5,7 @@ import { useTheme } from "../context/ThemeContext";
 import { api } from "../lib/api";
 import {
   LayoutDashboard, BarChart2, LogOut, Users,
-  Crown, Sun, Moon, Building2, ChevronDown, UserCircle, Ticket, KeyRound, ClipboardList, Lightbulb,
+  Crown, Sun, Moon, Building2, ChevronDown, UserCircle, Ticket, KeyRound, ClipboardList, Lightbulb, Settings,
 } from "lucide-react";
 
 const ROLE_LABEL = {
@@ -24,15 +24,18 @@ export default function AppHeader() {
   const [pendingCount, setPendingCount] = useState(0);
   const [resetCount,   setResetCount]   = useState(0);
   const [osOpenCount,  setOsOpenCount]  = useState(0);
-  const [userOpen, setUserOpen] = useState(false);
-  const userRef = useRef(null);
+  const [userOpen,   setUserOpen]   = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
+  const userRef   = useRef(null);
+  const configRef = useRef(null);
 
   const isStaff = STAFF_ROLES.includes(user?.role);
   const isAdmin = user?.role === "ADMIN";
 
   useEffect(() => {
     function handle(e) {
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
+      if (userRef.current   && !userRef.current.contains(e.target))   setUserOpen(false);
+      if (configRef.current && !configRef.current.contains(e.target)) setConfigOpen(false);
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
@@ -41,7 +44,7 @@ export default function AppHeader() {
   useEffect(() => {
     if (!isAdmin) return;
     function fetchCounts() {
-      api.get("/users?role=USER").then((r) => setPendingCount(r.data.length));
+      api.get("/users?role=USER&active=true").then((r) => setPendingCount(r.data.filter((u) => !u.unit).length));
       api.get("/password-reset-requests").then((r) => setResetCount(r.data.length)).catch(() => {});
     }
     fetchCounts();
@@ -61,6 +64,7 @@ export default function AppHeader() {
 
   const isActive = (path) => loc.pathname === path;
   const isActiveSearch = (path, search) => loc.pathname === path && loc.search.includes(search);
+  const configActive = isActive("/painel/setores") || isActive("/painel/n1") || isActiveSearch("/painel/usuarios", "tab=resets");
 
   const navCls = (active) =>
     `relative flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
@@ -125,7 +129,10 @@ export default function AppHeader() {
           {isAdmin && (
             <Link to="/painel/usuarios" className={navCls(isActive("/painel/usuarios") && !loc.search.includes("tab=resets"))}>
               {pendingCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                <span
+                  className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold"
+                  title={`${pendingCount} usuário${pendingCount !== 1 ? "s" : ""} sem núcleo atribuído`}
+                >
                   {pendingCount > 9 ? "9+" : pendingCount}
                 </span>
               )}
@@ -135,29 +142,63 @@ export default function AppHeader() {
           )}
 
           {isAdmin && (
-            <Link to="/painel/setores" className={navCls(isActive("/painel/setores"))}>
-              <Building2 size={15} />
-              <span className="hidden sm:inline">Setores</span>
-            </Link>
-          )}
+            <div className="relative" ref={configRef}>
+              <button
+                onClick={() => setConfigOpen((o) => !o)}
+                className={navCls(configActive)}
+              >
+                <Settings size={15} />
+                <span className="hidden sm:inline">Config</span>
+                <ChevronDown size={11} className={`transition-transform duration-200 ${configOpen ? "rotate-180" : ""}`} />
+              </button>
 
-          {isAdmin && (
-            <Link to="/painel/n1" className={navCls(isActive("/painel/n1"))}>
-              <Lightbulb size={15} />
-              <span className="hidden sm:inline">N1</span>
-            </Link>
-          )}
-
-          {isAdmin && (
-            <Link to="/painel/usuarios?tab=resets" className={navCls(isActiveSearch("/painel/usuarios", "tab=resets"))}>
-              {resetCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">
-                  {resetCount > 9 ? "9+" : resetCount}
-                </span>
+              {configOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-52 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg overflow-hidden z-50">
+                  <Link
+                    to="/painel/setores"
+                    onClick={() => setConfigOpen(false)}
+                    className={`flex items-center gap-2.5 px-3.5 py-2.5 text-sm transition ${
+                      isActive("/painel/setores")
+                        ? "bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 font-medium"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <Building2 size={15} />
+                    Setores
+                  </Link>
+                  <Link
+                    to="/painel/n1"
+                    onClick={() => setConfigOpen(false)}
+                    className={`flex items-center gap-2.5 px-3.5 py-2.5 text-sm transition ${
+                      isActive("/painel/n1")
+                        ? "bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 font-medium"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <Lightbulb size={15} />
+                    Suporte N1
+                  </Link>
+                  <div className="h-px bg-slate-100 dark:bg-gray-700/60" />
+                  <Link
+                    to="/painel/usuarios?tab=resets"
+                    onClick={() => setConfigOpen(false)}
+                    className={`flex items-center gap-2.5 px-3.5 py-2.5 text-sm transition ${
+                      isActiveSearch("/painel/usuarios", "tab=resets")
+                        ? "bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 font-medium"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <KeyRound size={15} />
+                    <span className="flex-1">Redefinições</span>
+                    {resetCount > 0 && (
+                      <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+                        {resetCount > 9 ? "9+" : resetCount}
+                      </span>
+                    )}
+                  </Link>
+                </div>
               )}
-              <KeyRound size={15} />
-              <span className="hidden sm:inline">Redefinições</span>
-            </Link>
+            </div>
           )}
         </nav>
 

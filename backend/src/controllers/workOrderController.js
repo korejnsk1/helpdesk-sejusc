@@ -98,11 +98,12 @@ export async function createWorkOrder(req, res) {
 }
 
 export async function listWorkOrders(req, res) {
-  const { status, unitId, tipo, limit, offset } = req.query;
+  const { status, unitId, tipo, limit, offset, ticketId } = req.query;
   const where = {};
-  if (status) where.status = status;
-  if (unitId) where.unitId = Number(unitId);
-  if (tipo)   where.tipo   = tipo;
+  if (status)   where.status  = status;
+  if (unitId)   where.unitId  = Number(unitId);
+  if (tipo)     where.tipo    = tipo;
+  if (ticketId) where.tickets = { some: { ticketId: Number(ticketId) } };
 
   const take = Math.min(Number(limit)  || 100, 500);
   const skip = Math.max(Number(offset) || 0,   0);

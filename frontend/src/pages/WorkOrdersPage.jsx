@@ -208,15 +208,14 @@ export default function WorkOrdersPage() {
     setLoading(true);
     try {
       const params = {};
-      if (statusFilter) params.status = statusFilter;
-      if (tipoFilter)   params.tipo   = tipoFilter;
-      if (unitFilter)   params.unitId = unitFilter;
+      if (tipoFilter) params.tipo   = tipoFilter;
+      if (unitFilter) params.unitId = unitFilter;
       const res = await api.get("/work-orders", { params });
       setOrders(res.data);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, tipoFilter, unitFilter]);
+  }, [tipoFilter, unitFilter]);
 
   useEffect(() => {
     api.get("/units").then((r) => setUnits(r.data));
@@ -244,6 +243,11 @@ export default function WorkOrdersPage() {
   }
 
   const hasFilters = tipoFilter || unitFilter;
+  const visible    = statusFilter ? orders.filter((o) => o.status === statusFilter) : orders;
+  const tabCounts  = STATUS_TABS.reduce((acc, tab) => {
+    acc[tab.key] = tab.key ? orders.filter((o) => o.status === tab.key).length : orders.length;
+    return acc;
+  }, {});
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
@@ -286,13 +290,24 @@ export default function WorkOrdersPage() {
                     : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200"
                 }`}
               >
-                {tab.label}
+                <span className="flex items-center gap-1.5">
+                  {tab.label}
+                  {tabCounts[tab.key] > 0 && (
+                    <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium leading-none ${
+                      statusFilter === tab.key
+                        ? "bg-brand-200 dark:bg-brand-800/60 text-brand-800 dark:text-brand-300"
+                        : "bg-slate-100 dark:bg-gray-700 text-slate-500 dark:text-gray-400"
+                    }`}>
+                      {tabCounts[tab.key]}
+                    </span>
+                  )}
+                </span>
                 {statusFilter === tab.key && (
                   <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-brand-600 dark:bg-brand-400" />
                 )}
               </button>
             ))}
-            <span className="ml-auto text-xs text-slate-400 dark:text-gray-500">{orders.length} OS</span>
+            <span className="ml-auto text-xs text-slate-400 dark:text-gray-500">{visible.length} OS</span>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -323,7 +338,7 @@ export default function WorkOrdersPage() {
         )}
 
         {/* Empty */}
-        {!loading && orders.length === 0 && (
+        {!loading && visible.length === 0 && (
           <div className="card p-14 text-center">
             <div className="text-4xl mb-3">📋</div>
             <div className="font-semibold text-slate-700 dark:text-gray-300">Nenhuma OS encontrada</div>
@@ -332,9 +347,9 @@ export default function WorkOrdersPage() {
         )}
 
         {/* Lista */}
-        {!loading && orders.length > 0 && (
+        {!loading && visible.length > 0 && (
           <div className="card divide-y divide-slate-100 dark:divide-gray-700/60">
-            {orders.map((os) => (
+            {visible.map((os) => (
               <Link
                 key={os.id}
                 to={`/painel/os/${os.id}`}
@@ -371,12 +386,16 @@ export default function WorkOrdersPage() {
                 </div>
 
                 <div className="text-right shrink-0 space-y-1">
-                  {os.prazo && (
-                    <div className="text-xs text-slate-500 dark:text-gray-400 flex items-center gap-1 justify-end">
-                      <Clock size={10} />
-                      {fmtDate(os.prazo)}
-                    </div>
-                  )}
+                  {os.prazo && (() => {
+                    const overdue = new Date(os.prazo) < new Date() && !["CONCLUIDA", "CANCELADA"].includes(os.status);
+                    return (
+                      <div className={`text-xs flex items-center gap-1 justify-end ${overdue ? "text-red-500 dark:text-red-400 font-medium" : "text-slate-500 dark:text-gray-400"}`}>
+                        <Clock size={10} />
+                        {fmtDate(os.prazo)}
+                        {overdue && <span className="text-[10px] uppercase tracking-wide">vencido</span>}
+                      </div>
+                    );
+                  })()}
                   <div className="text-xs text-slate-400 dark:text-gray-500">
                     {fmtDate(os.createdAt)}
                   </div>

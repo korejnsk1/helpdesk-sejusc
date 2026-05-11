@@ -20,6 +20,13 @@ const FILTER_TABS = [
   { key: "all",       label: "Todos" },
 ];
 
+const HIST_RANGES = [
+  { key: "7",  label: "7 dias"  },
+  { key: "30", label: "30 dias" },
+  { key: "90", label: "90 dias" },
+  { key: "0",  label: "Tudo"   },
+];
+
 export default function DashboardPage() {
   const socket  = useSocket();
   const addToast = useToast();
@@ -31,6 +38,7 @@ export default function DashboardPage() {
   const [loading, setLoading]         = useState(true);
   const [histLoading, setHistLoading] = useState(false);
   const [filter, setFilter]           = useState("active");
+  const [histRange, setHistRange]     = useState("30");
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   // Filtros avançados
@@ -71,12 +79,18 @@ export default function DashboardPage() {
   const loadHistory = useCallback(async () => {
     setHistLoading(true);
     try {
-      const res = await api.get("/tickets", { params: { status: "COMPLETED", limit: 500 } });
+      const params = { status: "COMPLETED", limit: 500 };
+      if (histRange !== "0") {
+        const from = new Date(Date.now() - Number(histRange) * 86400000);
+        from.setHours(0, 0, 0, 0);
+        params.from = from.toISOString();
+      }
+      const res = await api.get("/tickets", { params });
       setHistory(res.data.tickets);
     } finally {
       setHistLoading(false);
     }
-  }, []);
+  }, [histRange]);
 
   // Carrega filtros disponíveis
   useEffect(() => {
@@ -84,10 +98,10 @@ export default function DashboardPage() {
     api.get("/categories").then((r) => setCategories(r.data));
   }, []);
 
-  // Carrega histórico ao trocar para essa aba
+  // Carrega histórico ao trocar para essa aba ou mudar o período
   useEffect(() => {
     if (filter === "history") loadHistory();
-  }, [filter, loadHistory]);
+  }, [filter, loadHistory, histRange]);
 
   // Carrega tickets e escuta socket (sem polling)
   useEffect(() => {
@@ -157,7 +171,7 @@ export default function DashboardPage() {
             <h1 className="text-lg font-semibold text-slate-900 dark:text-gray-100 capitalize">{dateLabel}</h1>
             <p className="text-xs text-slate-400 dark:text-gray-500 mt-0.5 flex items-center gap-1.5">
               <Clock size={11} />
-              Atualizado às {lastUpdated.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              Atualizado às {lastUpdated.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
             </p>
           </div>
           <button
@@ -214,6 +228,26 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
+
+          {/* Seletor de período — só na aba Histórico */}
+          {filter === "history" && (
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-xs text-slate-400 dark:text-gray-500">Período:</span>
+              {HIST_RANGES.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => setHistRange(r.key)}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-medium transition ${
+                    histRange === r.key
+                      ? "bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400"
+                      : "text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Filtros avançados */}
           <div className="flex items-center gap-2 flex-wrap">

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { StatusBadge, InfoItem, Alert, Spinner } from "../components/ui";
 import AppHeader from "../components/AppHeader";
 import { formatElapsed, STATUS_LABEL } from "../lib/statuses";
@@ -31,6 +32,7 @@ export default function TicketDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { user } = useAuth();
+  const addToast = useToast();
   const [ticket, setTicket] = useState(null);
   const [units, setUnits] = useState([]);
   const [techs, setTechs] = useState([]);
@@ -48,11 +50,7 @@ export default function TicketDetailPage() {
     load();
     api.get("/units").then((r) => setUnits(r.data));
     api.get("/technicians").then((r) => setTechs(r.data));
-    api.get("/work-orders").then((r) => {
-      const all = r.data;
-      setAllOs(all);
-      setLinkedOs(all.filter((os) => os.tickets.some((t) => t.id === Number(id))));
-    });
+    api.get(`/work-orders?ticketId=${id}`).then((r) => setLinkedOs(r.data));
   }, [id]);
 
   async function load() {
@@ -64,11 +62,19 @@ export default function TicketDetailPage() {
   async function linkToOs(osId) {
     try {
       await api.post(`/work-orders/${osId}/tickets`, { ticketId: Number(id) });
-      const res = await api.get("/work-orders");
-      setAllOs(res.data);
-      setLinkedOs(res.data.filter((os) => os.tickets.some((t) => t.id === Number(id))));
+      const res = await api.get(`/work-orders?ticketId=${id}`);
+      setLinkedOs(res.data);
       setShowOsLink(false);
     } catch (e) { setErr(e.response?.data?.error || "Erro ao vincular OS"); }
+  }
+
+  function toggleOsLink() {
+    setShowOsLink((v) => {
+      if (!v && allOs.length === 0) {
+        api.get("/work-orders").then((r) => setAllOs(r.data)).catch(() => {});
+      }
+      return !v;
+    });
   }
 
   async function createAndLinkOs() {
@@ -88,6 +94,7 @@ export default function TicketDetailPage() {
         solution: form.solution || undefined,
       });
       setForm((f) => ({ ...f, internalNote: "", cause: "", solution: "" }));
+      addToast({ message: "Status atualizado com sucesso", type: "success" });
       load();
     } catch (e) {
       setErr(e.response?.data?.error || "Erro na transição");
@@ -265,7 +272,7 @@ export default function TicketDetailPage() {
               {canTransition && (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setShowOsLink((v) => !v)}
+                    onClick={toggleOsLink}
                     className="text-xs text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
                   >
                     <Plus size={12} /> Vincular OS
@@ -457,9 +464,9 @@ export default function TicketDetailPage() {
                       return (
                         <button
                           key={next}
-                          disabled={loading}
+                          disabled={loading || (next === "COMPLETED" && (!form.cause.trim() || !form.solution.trim()))}
                           onClick={() => doTransition(next)}
-                          className={`w-full justify-center ${TRANSITION_COLOR[next] || "btn-primary"}`}
+                          className={`w-full justify-center ${TRANSITION_COLOR[next] || "btn-primary"} disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           {loading ? <Spinner className="h-4 w-4" /> : <CheckCircle2 size={15} />}
                           {labels[next] || `→ ${STATUS_LABEL[next]}`}
