@@ -6,6 +6,7 @@ import { Alert, Spinner } from "../components/ui";
 import {
   ArrowLeft, ArrowRight, Monitor, Wifi, KeyRound, HelpCircle,
   CheckCircle2, MonitorSmartphone, Copy, Check as CheckIcon, Printer, LogOut,
+  Lightbulb,
 } from "lucide-react";
 
 const CATEGORY_ICONS = {
@@ -26,13 +27,11 @@ const CATEGORY_COLORS = {
   PRINTER:  "bg-green-50   dark:bg-green-900/30   text-green-600   dark:text-green-400   border-green-200   dark:border-green-700",
 };
 
-const STEPS = ["Tipo do problema", "Detalhes"];
-
 export default function NewTicketPage() {
   const nav = useNavigate();
   const { user, logout } = useAuth();
   const [categories, setCategories] = useState([]);
-  const [step, setStep] = useState(1);
+  const [screen, setScreen] = useState("category");
   const [form, setForm] = useState({
     categoryId: null,
     subcategoryId: null,
@@ -48,17 +47,22 @@ export default function NewTicketPage() {
   }, []);
 
   const selectedCategory = categories.find((c) => c.id === form.categoryId);
-  const isRemote = selectedCategory?.code === "REMOTE";
+  const isRemote   = selectedCategory?.code === "REMOTE";
+  const n1Tips     = selectedCategory?.n1Tips ? JSON.parse(selectedCategory.n1Tips) : [];
+
   const selectedSubcategory = selectedCategory?.subcategories?.find((s) => s.id === form.subcategoryId);
   const isOutro = selectedSubcategory?.name === "Outro";
+
+  const steps = ["Tipo do problema", "Detalhes"];
+  const currentStep = screen === "category" ? 1 : 2;
 
   async function submit() {
     setError("");
     setSubmitting(true);
     try {
       const payload = {
-        categoryId: form.categoryId,
-        subcategoryId: selectedCategory?.allowsFreeText || isRemote ? null : form.subcategoryId,
+        categoryId:          form.categoryId,
+        subcategoryId:       selectedCategory?.allowsFreeText || isRemote ? null : form.subcategoryId,
         freeTextDescription: isRemote
           ? (form.freeTextDescription?.trim() || null)
           : (selectedCategory?.allowsFreeText ? form.freeTextDescription : null),
@@ -75,9 +79,7 @@ export default function NewTicketPage() {
 
   // ── Tela de sucesso ──────────────────────────────────────────────────────
   if (createdTicket) {
-    if (createdTicket.isRemote) {
-      return <RemoteSuccessScreen ticketNumber={createdTicket.ticketNumber} />;
-    }
+    if (createdTicket.isRemote) return <RemoteSuccessScreen ticketNumber={createdTicket.ticketNumber} />;
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-gray-950 flex items-center justify-center p-4">
         <div className="card p-8 text-center max-w-sm w-full space-y-4">
@@ -91,10 +93,7 @@ export default function NewTicketPage() {
               Guarde o protocolo para acompanhar o andamento.
             </p>
           </div>
-          <Link
-            to={`/acompanhar/${createdTicket.ticketNumber}`}
-            className="btn-primary w-full justify-center"
-          >
+          <Link to={`/acompanhar/${createdTicket.ticketNumber}`} className="btn-primary w-full justify-center">
             Acompanhar chamado
           </Link>
           <Link to="/" className="block text-sm text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition">
@@ -109,27 +108,31 @@ export default function NewTicketPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950 flex flex-col">
       {/* Header */}
       <header className="bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-700 px-4 h-14 flex items-center gap-3">
-        <Link to="/" className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition">
+        <button
+          onClick={() => {
+            if (screen === "details") setScreen("category");
+            else nav("/");
+          }}
+          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition"
+        >
           <ArrowLeft size={16} />
           Voltar
-        </Link>
+        </button>
         <div className="h-4 w-px bg-slate-200 dark:bg-gray-700" />
         <h1 className="text-sm font-semibold text-slate-800 dark:text-gray-100">Abrir chamado</h1>
         <div className="ml-auto">
           <button
             onClick={async () => { await logout(); nav("/"); }}
             className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition"
-            title="Sair"
           >
-            <LogOut size={16} />
-            Sair
+            <LogOut size={16} /> Sair
           </button>
         </div>
       </header>
 
       <main className="flex-1 p-4 md:p-8 max-w-2xl w-full mx-auto">
 
-        {/* Identidade do solicitante */}
+        {/* Solicitante */}
         <div className="mb-5 rounded-xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="text-xs text-slate-500 dark:text-gray-400">Chamado aberto por</p>
@@ -143,15 +146,15 @@ export default function NewTicketPage() {
 
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-6">
-          {STEPS.map((label, idx) => {
-            const n = idx + 1;
-            const done = n < step;
-            const active = n === step;
+          {steps.map((label, idx) => {
+            const n      = idx + 1;
+            const done   = n < currentStep;
+            const active = n === currentStep;
             return (
               <div key={n} className="flex items-center gap-2 flex-1 last:flex-none">
                 <div className="flex items-center gap-2 shrink-0">
                   <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition ${
-                    done  ? "bg-brand-600 text-white"
+                    done   ? "bg-brand-600 text-white"
                     : active ? "bg-brand-600 text-white ring-4 ring-brand-600/20"
                     : "bg-slate-200 dark:bg-gray-700 text-slate-500 dark:text-gray-400"
                   }`}>
@@ -161,8 +164,8 @@ export default function NewTicketPage() {
                     {label}
                   </span>
                 </div>
-                {idx < STEPS.length - 1 && (
-                  <div className={`flex-1 h-px ${n < step ? "bg-brand-600" : "bg-slate-200 dark:bg-gray-700"}`} />
+                {idx < steps.length - 1 && (
+                  <div className={`flex-1 h-px ${n < currentStep ? "bg-brand-600" : "bg-slate-200 dark:bg-gray-700"}`} />
                 )}
               </div>
             );
@@ -171,8 +174,8 @@ export default function NewTicketPage() {
 
         <div className="card p-6">
 
-          {/* ── STEP 1: Tipo do problema ── */}
-          {step === 1 && (
+          {/* ── TELA 1: Tipo do problema ── */}
+          {screen === "category" && (
             <div className="space-y-4">
               <div>
                 <h2 className="text-base font-semibold text-slate-900 dark:text-gray-100">Tipo do problema</h2>
@@ -181,9 +184,9 @@ export default function NewTicketPage() {
 
               <div className="space-y-2">
                 {categories.filter((c) => c.code !== "REMOTE").map((c) => {
-                  const Icon = CATEGORY_ICONS[c.code] || HelpCircle;
+                  const Icon       = CATEGORY_ICONS[c.code] || HelpCircle;
                   const colorClass = CATEGORY_COLORS[c.code] || CATEGORY_COLORS.OTHER;
-                  const selected = form.categoryId === c.id;
+                  const selected   = form.categoryId === c.id;
                   return (
                     <button
                       key={c.id}
@@ -257,7 +260,7 @@ export default function NewTicketPage() {
 
               <button
                 disabled={!form.categoryId}
-                onClick={() => setStep(2)}
+                onClick={() => setScreen("details")}
                 className="btn-primary w-full py-3"
               >
                 Continuar <ArrowRight size={16} />
@@ -265,9 +268,30 @@ export default function NewTicketPage() {
             </div>
           )}
 
-          {/* ── STEP 2: Detalhes ── */}
-          {step === 2 && selectedCategory && (
+          {/* ── TELA 2: Detalhes ── */}
+          {screen === "details" && selectedCategory && (
             <div className="space-y-4">
+
+              {/* Card N1 — só aparece se houver dicas, não bloqueia nada */}
+              {n1Tips.length > 0 && !isRemote && (
+                <div className="rounded-xl border border-amber-200 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-900/15 px-4 py-3.5 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
+                    <Lightbulb size={15} />
+                    Dicas rápidas — {selectedCategory.name}
+                  </div>
+                  <ul className="space-y-1.5">
+                    {n1Tips.map((tip, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
+                        <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-amber-200 dark:bg-amber-800/60 text-amber-700 dark:text-amber-300 font-bold flex items-center justify-center text-[10px]">
+                          {i + 1}
+                        </span>
+                        {tip}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div>
                 <h2 className="text-base font-semibold text-slate-900 dark:text-gray-100">{selectedCategory.name}</h2>
                 <p className="text-sm text-slate-500 dark:text-gray-400 mt-0.5">
@@ -352,7 +376,10 @@ export default function NewTicketPage() {
               <Alert message={error} />
 
               <div className="flex gap-2 pt-1">
-                <button onClick={() => setStep(1)} className="btn-secondary flex-1">
+                <button
+                  onClick={() => setScreen("category")}
+                  className="btn-secondary flex-1"
+                >
                   <ArrowLeft size={16} /> Voltar
                 </button>
                 <button
@@ -380,6 +407,7 @@ export default function NewTicketPage() {
   );
 }
 
+// ── AnyDesk step ──────────────────────────────────────────────────────────────
 function AnyDeskStep({ value, onChange, description, onDescriptionChange }) {
   return (
     <div className="space-y-4">
@@ -401,23 +429,15 @@ function AnyDeskStep({ value, onChange, description, onDescriptionChange }) {
           placeholder="Ex: 123 456 789"
           value={value}
           onChange={(e) => onChange(e.target.value.replace(/[^\d\s]/g, ""))}
-          autoFocus
-          maxLength={20}
-          inputMode="numeric"
+          autoFocus maxLength={20} inputMode="numeric"
         />
-        <p className="mt-1 text-xs text-slate-400 dark:text-gray-500">
-          Apenas números, como exibido no AnyDesk
-        </p>
+        <p className="mt-1 text-xs text-slate-400 dark:text-gray-500">Apenas números, como exibido no AnyDesk</p>
       </div>
       <div>
         <label className="field-label">Descreva o problema <span className="text-slate-400 dark:text-gray-500 font-normal">(opcional)</span></label>
-        <textarea
-          rows={3}
-          className="field-input resize-none"
+        <textarea rows={3} className="field-input resize-none"
           placeholder="Ex: Chrome não abre, preciso instalar um programa."
-          value={description}
-          onChange={(e) => onDescriptionChange(e.target.value)}
-        />
+          value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
       </div>
       <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-4 py-3 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
         <span className="text-base shrink-0 mt-0.5">⚠️</span>
@@ -427,6 +447,7 @@ function AnyDeskStep({ value, onChange, description, onDescriptionChange }) {
   );
 }
 
+// ── Remote success ─────────────────────────────────────────────────────────────
 function RemoteSuccessScreen({ ticketNumber }) {
   const [copied, setCopied] = useState(false);
   function copyProtocol() {
@@ -448,18 +469,15 @@ function RemoteSuccessScreen({ ticketNumber }) {
           <div className="text-xs text-slate-500 dark:text-gray-400 mb-1">Protocolo</div>
           <div className="flex items-center justify-center gap-2">
             <span className="font-mono font-bold text-slate-800 dark:text-gray-100 text-lg">{ticketNumber}</span>
-            <button
-              onClick={copyProtocol}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition"
-            >
+            <button onClick={copyProtocol}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition">
               {copied ? <CheckIcon size={14} className="text-emerald-500" /> : <Copy size={14} />}
             </button>
           </div>
         </div>
         <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 p-4 text-left space-y-2">
           <div className="flex items-center gap-2 font-semibold text-amber-800 dark:text-amber-300 text-sm">
-            <span className="text-lg">🔔</span>
-            Fique de olho no AnyDesk!
+            <span className="text-lg">🔔</span> Fique de olho no AnyDesk!
           </div>
           <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
             O técnico vai enviar uma solicitação de conexão em breve. Mantenha o AnyDesk <strong>aberto</strong> e clique em{" "}

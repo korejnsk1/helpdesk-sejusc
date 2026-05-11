@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "../config/prisma.js";
 import { maskCpf } from "../utils/cpf.js";
 import { buildTicketNumber } from "../utils/ticketNumber.js";
+import { nextTicketSeq } from "../utils/nextSequence.js";
 import { STATUS, canTransition, allowedNext } from "../utils/ticketStateMachine.js";
 const createTicketSchema = z.object({
   departmentId: z.number().int().positive().optional().nullable(),
@@ -79,25 +80,9 @@ export async function createTicket(req, res) {
     history: { create: { toStatus: STATUS.OPEN } },
   };
 
-  // Geração atômica do número de protocolo dentro de transação serializada
-  let ticket;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      ticket = await prisma.$transaction(async (tx) => {
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        const countToday = await tx.ticket.count({ where: { openedAt: { gte: startOfDay } } });
-        const ticketNumber = buildTicketNumber(countToday + 1);
-        return tx.ticket.create({ data: { ticketNumber, ...ticketPayload } });
-      }, { isolationLevel: "Serializable" });
-      break;
-    } catch (e) {
-      const isCollision = e?.code === "P2002" && e?.meta?.target?.includes?.("ticketNumber");
-      const isDeadlock = e?.code === "P2034";
-      if ((isCollision || isDeadlock) && attempt < 4) continue;
-      throw e;
-    }
-  }
+  const seq = await nextTicketSeq();
+  const ticketNumber = buildTicketNumber(seq);
+  const ticket = await prisma.ticket.create({ data: { ticketNumber, ...ticketPayload } });
 
   req.app.get("io")?.emit("ticket:created", { ticketNumber: ticket.ticketNumber });
 

@@ -135,6 +135,7 @@ export async function resolveResetRequest(req, res) {
     data: { status: "RESOLVED", resolvedAt: new Date(), resolvedById: req.user.id },
   });
 
+  res.setHeader("Cache-Control", "no-store");
   res.json({ ok: true, tempPassword, phone: request.phone, name: request.name });
 }
 

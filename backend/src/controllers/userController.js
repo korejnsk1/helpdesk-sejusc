@@ -159,6 +159,7 @@ export async function resetPassword(req, res) {
     data: { passwordHash, mustChangePassword: true },
   });
 
+  res.setHeader("Cache-Control", "no-store");
   res.json({ ok: true, tempPassword });
 }
 

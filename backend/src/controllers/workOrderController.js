@@ -19,13 +19,14 @@ const VALID_TRANSITIONS = {
   CANCELADA:    [],
 };
 
-function buildOsNumber(count) {
+import { nextOsSeq } from "../utils/nextSequence.js";
+
+function buildOsNumber(seq) {
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  const seq = String(count).padStart(4, "0");
-  return `OS-${y}${m}${day}-${seq}`;
+  return `OS-${y}${m}${day}-${String(seq).padStart(4, "0")}`;
 }
 
 function formatOs(os) {
@@ -81,37 +82,23 @@ export async function createWorkOrder(req, res) {
   if (!parsed.success) return res.status(400).json({ error: "Dados inválidos", details: parsed.error.issues });
   const data = parsed.data;
 
-  let os;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      os = await prisma.$transaction(async (tx) => {
-        const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-        const countToday = await tx.workOrder.count({ where: { createdAt: { gte: startOfDay } } });
-        const osNumber = buildOsNumber(countToday + 1);
-        return tx.workOrder.create({
-          data: {
-            osNumber,
-            tipo:      data.tipo,
-            local:     data.local,
-            problema:  data.problema ?? null,
-            materiais: data.materiais ?? null,
-            prazo:     data.prazo ? new Date(data.prazo) : null,
-            unitId:    data.unitId ?? null,
-            createdById: req.user.id,
-            history: { create: { toStatus: "ABERTA", actorId: req.user.id } },
-            ...(data.ticketId ? { tickets: { create: { ticketId: data.ticketId } } } : {}),
-          },
-          include: osInclude,
-        });
-      }, { isolationLevel: "Serializable" });
-      break;
-    } catch (e) {
-      const isCollision = e?.code === "P2002" && e?.meta?.target?.includes?.("osNumber");
-      const isDeadlock  = e?.code === "P2034";
-      if ((isCollision || isDeadlock) && attempt < 4) continue;
-      throw e;
-    }
-  }
+  const seq = await nextOsSeq();
+  const osNumber = buildOsNumber(seq);
+  const os = await prisma.workOrder.create({
+    data: {
+      osNumber,
+      tipo:        data.tipo,
+      local:       data.local,
+      problema:    data.problema ?? null,
+      materiais:   data.materiais ?? null,
+      prazo:       data.prazo ? new Date(data.prazo) : null,
+      unitId:      data.unitId ?? null,
+      createdById: req.user.id,
+      history: { create: { toStatus: "ABERTA", actorId: req.user.id } },
+      ...(data.ticketId ? { tickets: { create: { ticketId: data.ticketId } } } : {}),
+    },
+    include: osInclude,
+  });
 
   req.app.get("io")?.emit("workorder:created", { osNumber: os.osNumber });
   res.status(201).json(formatOs(os));

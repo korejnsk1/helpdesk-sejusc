@@ -27,3 +27,15 @@ export async function getPublicConfig(req, res) {
     feedbackEnabled: process.env.FEEDBACK_ENABLED === "true",
   });
 }
+
+export async function updateCategory(req, res) {
+  const id = Number(req.params.id);
+  const { n1Tips } = req.body;
+  const cat = await prisma.category.findUnique({ where: { id } });
+  if (!cat) return res.status(404).json({ error: "Categoria não encontrada" });
+  const updated = await prisma.category.update({
+    where: { id },
+    data: { n1Tips: n1Tips !== undefined ? (n1Tips || null) : undefined },
+  });
+  res.json(updated);
+}

@@ -98,7 +98,6 @@ export default function DepartmentsPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
       <AppHeader />
 
-      {/* Modal de confirmação de exclusão */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="card w-full max-w-sm p-6 space-y-4">
@@ -141,7 +140,6 @@ export default function DepartmentsPage() {
 
         <Alert message={err} />
 
-        {/* Formulário de novo setor */}
         <div className="card p-4">
           <form onSubmit={handleAdd} className="flex gap-2">
             <div className="relative flex-1">
@@ -179,7 +177,6 @@ export default function DepartmentsPage() {
           </div>
         ) : (
           <>
-            {/* Setores ativos */}
             {active.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
@@ -203,7 +200,6 @@ export default function DepartmentsPage() {
               </section>
             )}
 
-            {/* Setores inativos */}
             {inactive.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
@@ -229,7 +225,6 @@ export default function DepartmentsPage() {
           </>
         )}
 
-        {/* Resumo */}
         {departments.length > 0 && (
           <p className="text-xs text-slate-400 dark:text-gray-500 text-center pb-2">
             <Hash size={11} className="inline mr-1" />
@@ -304,7 +299,6 @@ function DeptRow({ dept, editingId, editName, setEditingId, setEditName, onSaveE
           </>
         ) : (
           <>
-            {/* Ativar / Desativar */}
             <button
               onClick={() => onToggle(dept)}
               className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
@@ -317,7 +311,6 @@ function DeptRow({ dept, editingId, editName, setEditingId, setEditName, onSaveE
               {dept.active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
             </button>
 
-            {/* Editar */}
             <button
               onClick={startEdit}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:text-slate-600 dark:hover:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 transition"
@@ -326,7 +319,6 @@ function DeptRow({ dept, editingId, editName, setEditingId, setEditName, onSaveE
               <Pencil size={14} />
             </button>
 
-            {/* Excluir — só se não tiver chamados */}
             <button
               onClick={() => onDelete(dept)}
               disabled={dept._count?.tickets > 0}

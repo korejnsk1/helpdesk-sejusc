@@ -5,7 +5,7 @@ import { useTheme } from "../context/ThemeContext";
 import { api } from "../lib/api";
 import {
   LayoutDashboard, BarChart2, LogOut, Users,
-  Crown, Sun, Moon, Building2, ChevronDown, UserCircle, Ticket, KeyRound, ClipboardList,
+  Crown, Sun, Moon, Building2, ChevronDown, UserCircle, Ticket, KeyRound, ClipboardList, Lightbulb,
 } from "lucide-react";
 
 const ROLE_LABEL = {
@@ -138,6 +138,13 @@ export default function AppHeader() {
             <Link to="/painel/setores" className={navCls(isActive("/painel/setores"))}>
               <Building2 size={15} />
               <span className="hidden sm:inline">Setores</span>
+            </Link>
+          )}
+
+          {isAdmin && (
+            <Link to="/painel/n1" className={navCls(isActive("/painel/n1"))}>
+              <Lightbulb size={15} />
+              <span className="hidden sm:inline">N1</span>
             </Link>
           )}
 

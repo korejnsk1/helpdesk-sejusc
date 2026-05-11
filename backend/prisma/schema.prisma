@@ -105,6 +105,7 @@ model Category {
   icon           String?
   sortOrder      Int           @default(0)
   allowsFreeText Boolean       @default(false)
+  n1Tips         String?       @db.Text
   subcategories  Subcategory[]
   tickets        Ticket[]
 }
@@ -185,6 +186,12 @@ model ConfigFlag {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model DailyCounter {
+  date        DateTime @id @db.Date
+  ticketCount Int      @default(0)
+  osCount     Int      @default(0)
 }
 
 model WorkOrder {

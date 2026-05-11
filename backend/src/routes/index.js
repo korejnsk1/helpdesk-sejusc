@@ -10,7 +10,7 @@ import {
   transitionTicket, deleteTicket, submitFeedback,
 } from "../controllers/ticketController.js";
 import {
-  listCategories, listUnits, listTechnicians, getPublicConfig,
+  listCategories, listUnits, listTechnicians, getPublicConfig, updateCategory,
 } from "../controllers/metaController.js";
 import {
   listDepartments, listAllDepartments, createDepartment,
@@ -50,9 +50,10 @@ const forgotLimiter = rateLimit({
 const router = Router();
 
 // ── Público ──────────────────────────────────────────────────────────────────
-router.get("/config",    getPublicConfig);
-router.get("/categories", listCategories);
-router.get("/units",     listUnits);
+router.get("/config",          getPublicConfig);
+router.get("/categories",      listCategories);
+router.patch("/categories/:id", authRequired, requireRole("ADMIN"), updateCategory);
+router.get("/units",           listUnits);
 router.get("/departments", listDepartments);
 router.post("/tickets",  authRequired, createTicket);
 router.get("/tickets/track/:ticketNumber", getTicketPublic);

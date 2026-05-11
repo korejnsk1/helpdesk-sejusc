@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import http from "http";
+import jwt from "jsonwebtoken";
 import { Server as SocketServer } from "socket.io";
 import routes from "./routes/index.js";
 
@@ -15,8 +16,23 @@ if (!allowedOrigin) {
 const app = express();
 const server = http.createServer(app);
 const io = new SocketServer(server, {
-  cors: { origin: allowedOrigin || "*", methods: ["GET", "POST"] },
+  cors: { origin: allowedOrigin || "*", credentials: true, methods: ["GET", "POST"] },
 });
+
+// Rejeita conexões WebSocket sem token válido
+io.use((socket, next) => {
+  const cookie = socket.handshake.headers.cookie || "";
+  const match  = cookie.match(/hd_token=([^;]+)/);
+  const token  = match?.[1];
+  if (!token) return next(new Error("auth_required"));
+  try {
+    socket.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    next(new Error("auth_invalid"));
+  }
+});
+
 app.set("io", io);
 
 app.use(cors({
