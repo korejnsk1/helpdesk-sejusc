@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useSocket } from "../context/SocketContext";
 import { Spinner } from "../components/ui";
+import DateInput from "../components/DateInput";
 import AppHeader from "../components/AppHeader";
 import {
   ClipboardList, Plus, ChevronRight, Calendar, MapPin,
@@ -165,11 +166,9 @@ function CreateOsModal({ onClose, onCreate, units }) {
             </div>
             <div>
               <label className="field-label">Prazo</label>
-              <input
-                type="date"
+              <DateInput
                 value={form.prazo}
-                onChange={(e) => setForm({ ...form, prazo: e.target.value })}
-                className="field-input"
+                onChange={(v) => setForm({ ...form, prazo: v })}
               />
             </div>
           </div>

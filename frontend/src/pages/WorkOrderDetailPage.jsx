@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { StatusBadge, Spinner } from "../components/ui";
+import DateInput from "../components/DateInput";
 import AppHeader from "../components/AppHeader";
 import {
   ArrowLeft, ChevronRight, MapPin, Users, Clock,
@@ -494,10 +495,9 @@ export default function WorkOrderDetailPage() {
                     </div>
                     <div>
                       <label className="field-label">Prazo</label>
-                      <input
-                        type="date" value={editForm.prazo}
-                        onChange={(e) => setEditForm({ ...editForm, prazo: e.target.value })}
-                        className="field-input text-sm"
+                      <DateInput
+                        value={editForm.prazo}
+                        onChange={(v) => setEditForm({ ...editForm, prazo: v })}
                       />
                     </div>
                   </div>

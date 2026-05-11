@@ -259,38 +259,41 @@ export default function UsersPage() {
 
         <Alert message={err} />
 
-        {/* Tabs */}
-        <div className="flex gap-2 flex-wrap">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
-                tab === t.key
-                  ? "bg-brand-600 text-white"
-                  : t.highlight
-                  ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-                  : "bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300 ring-1 ring-slate-200 dark:ring-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700"
-              }`}
-            >
-              {t.label}
-              <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-                tab === t.key ? "bg-white/20 text-white"
-                : t.highlight ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"
-                : "bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300"
-              }`}>
-                {t.count}
-              </span>
-            </button>
-          ))}
-        </div>
+        {/* Tabs — ocultos na view de redefinições */}
+        {tab !== "resets" && (
+          <div className="flex gap-2 flex-wrap">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
+                  tab === t.key
+                    ? "bg-brand-600 text-white"
+                    : t.highlight
+                    ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                    : "bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300 ring-1 ring-slate-200 dark:ring-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700"
+                }`}
+              >
+                {t.label}
+                <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
+                  tab === t.key ? "bg-white/20 text-white"
+                  : t.highlight ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"
+                  : "bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300"
+                }`}>
+                  {t.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {tab === "resets" ? (
           resetRequests.length === 0 ? (
             <div className="card p-10 text-center text-slate-400 dark:text-gray-500">
               Nenhuma solicitação de redefinição pendente 🎉
             </div>
-          ) : (
+          ) : (<>
+            <p className="text-sm text-slate-500 dark:text-gray-400">{resetRequests.length} solicitação{resetRequests.length !== 1 ? "ões" : ""} pendente{resetRequests.length !== 1 ? "s" : ""}</p>
             <div className="space-y-3">
               {resetRequests.map((r) => (
                 <div key={r.id} className="card px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -321,7 +324,7 @@ export default function UsersPage() {
                 </div>
               ))}
             </div>
-          )
+          </>)
         ) : loading ? (
           <div className="flex items-center justify-center py-16">
             <Spinner className="h-8 w-8" />
@@ -469,8 +472,8 @@ function UserRow({ user, units, me, onUpdate, onDelete, onGrantAdmin, onRevokeAd
       {/* Ações */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
 
-        {/* Atribuir unidade (apenas para técnicos) */}
-        {isTech && (
+        {/* Atribuir unidade (técnicos e admins) */}
+        {(isTech || isAdmin) && (
           <div className="flex items-center gap-1.5">
             <select
               className="field-input py-1.5 text-xs min-w-[140px]"

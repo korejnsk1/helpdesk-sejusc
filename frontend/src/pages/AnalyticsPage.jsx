@@ -12,6 +12,7 @@ import {
   Calendar, BarChart2, PieChart as PieChartIcon, TrendingUp,
   FileText, Ticket, ClipboardList, Layers,
 } from "lucide-react";
+import DateInput from "../components/DateInput";
 
 // ── Month helpers ─────────────────────────────────────────────────────────────
 const MONTH_NAMES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -640,15 +641,21 @@ export default function AnalyticsPage() {
           <div className="flex items-center gap-2">
             <div>
               <label className="field-label text-xs">De</label>
-              <input type="date" value={range.from} max={range.to}
-                onChange={(e) => setRange({ ...range, from: e.target.value })}
-                className="field-input py-1.5 text-sm" />
+              <DateInput
+                value={range.from}
+                max={range.to}
+                onChange={(v) => v && setRange({ ...range, from: v })}
+                className="w-36"
+              />
             </div>
             <div>
               <label className="field-label text-xs">Até</label>
-              <input type="date" value={range.to} min={range.from}
-                onChange={(e) => setRange({ ...range, to: e.target.value })}
-                className="field-input py-1.5 text-sm" />
+              <DateInput
+                value={range.to}
+                min={range.from}
+                onChange={(v) => v && setRange({ ...range, to: v })}
+                className="w-36"
+              />
             </div>
           </div>
 
@@ -660,7 +667,7 @@ export default function AnalyticsPage() {
               className="flex items-center gap-2 rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/30 px-3.5 py-2 text-sm font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50 disabled:opacity-40 transition"
             >
               <FileText size={14} />
-              {pdfBusy ? "Gerando…" : panel === "chamados" ? "PDF Chamados" : "PDF Ordens de Serviço"}
+              {pdfBusy ? "Gerando…" : "Exportar PDF"}
             </button>
             <button
               onClick={handleCombinedPdf}
@@ -668,7 +675,7 @@ export default function AnalyticsPage() {
               className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3.5 py-2 text-sm font-medium text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 disabled:opacity-40 transition"
             >
               <Layers size={14} />
-              {pdfBusy ? "Gerando…" : "Relatório Completo"}
+              {pdfBusy ? "Gerando…" : "Exportar Tudo"}
             </button>
           </div>
         </div>
