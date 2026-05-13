@@ -7,7 +7,7 @@ import { maskCpf, isValidCpf } from "../lib/cpf";
 import { Alert, Spinner, StatusBadge } from "../components/ui";
 import {
   Headset, Sun, Moon, LogIn, UserPlus, PlusCircle,
-  LogOut, Clock, ChevronRight, Ticket, KeyRound,
+  LogOut, Clock, ChevronRight, Ticket, KeyRound, Search,
 } from "lucide-react";
 
 const STAFF_ROLES = ["TECHNICIAN", "ADMIN"];
@@ -21,6 +21,8 @@ export default function HomePage() {
   const [password, setPassword] = useState("");
   const [err, setErr]           = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
+
+  const [trackNum, setTrackNum] = useState("");
 
   const [tickets, setTickets]           = useState([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
@@ -103,6 +105,31 @@ export default function HomePage() {
             <h1 className="text-2xl font-bold text-slate-900 dark:text-gray-100">Central de Suporte TI</h1>
             <p className="mt-1 text-slate-500 dark:text-gray-400 text-sm">SEJUSC</p>
           </div>
+
+          {/* ── Acompanhar chamado (sempre visível) ── */}
+          {!user && (
+            <form
+              onSubmit={(e) => { e.preventDefault(); if (trackNum.trim()) nav(`/acompanhar/${trackNum.trim().toUpperCase()}`); }}
+              className="card p-4 flex gap-2 mb-2"
+            >
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  className="field-input pl-8 py-2 text-sm w-full font-mono"
+                  placeholder="Número do chamado (ex: 20250513-0001)"
+                  value={trackNum}
+                  onChange={(e) => setTrackNum(e.target.value)}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!trackNum.trim()}
+                className="btn-secondary py-2 px-4 text-sm shrink-0 disabled:opacity-40"
+              >
+                Acompanhar
+              </button>
+            </form>
+          )}
 
           {!user ? (
             /* ── Não autenticado: formulário de login ── */

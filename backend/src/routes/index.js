@@ -8,6 +8,7 @@ import {
 import {
   createTicket, getTicketPublic, listTickets, getTicket,
   transitionTicket, approveTicket, deleteTicket, submitFeedback,
+  reopenTicket, assignTicket, listComments, addComment, submitFeedbackAuth,
 } from "../controllers/ticketController.js";
 import {
   listCategories, listUnits, listTechnicians, getPublicConfig,
@@ -18,6 +19,7 @@ import {
   listDepartments, listAllDepartments, createDepartment,
   updateDepartment, deleteDepartment,
 } from "../controllers/departmentController.js";
+import { listAuditLogs } from "../controllers/auditController.js";
 import {
   ticketsByUnit, ticketsByTechnician, ticketsByDepartment,
   ticketsByCategory, avgResolutionByCategory, avgResolutionByUnit, otherReclassified,
@@ -112,6 +114,11 @@ router.get("/tickets",     authRequired, requireRole("TECHNICIAN", "ADMIN", "CHE
 router.get("/tickets/:id", authRequired, requireRole("TECHNICIAN", "ADMIN", "CHEFE_SETOR"), getTicket);
 router.post("/tickets/:id/transition", authRequired, requireRole("TECHNICIAN", "ADMIN"), transitionTicket);
 router.post("/tickets/:id/approve",    authRequired, requireRole("CHEFE_SETOR", "ADMIN"), approveTicket);
+router.post("/tickets/:id/reopen",     authRequired, reopenTicket);
+router.patch("/tickets/:id/assign",    authRequired, requireRole("TECHNICIAN", "ADMIN"), assignTicket);
+router.get("/tickets/:id/comments",   authRequired, listComments);
+router.post("/tickets/:id/comments",  authRequired, addComment);
+router.post("/tickets/:id/feedback",  authRequired, submitFeedbackAuth);
 router.delete("/tickets/:id", authRequired, requireRole("ADMIN"), deleteTicket);
 
 // ── Ordens de Serviço ──────────────────────────────────────────────────────────
@@ -127,6 +134,9 @@ router.post("/work-orders/:id/tecnicos",            ...staffAccess, addTecnico);
 router.delete("/work-orders/:id/tecnicos/:userId",  ...staffAccess, removeTecnico);
 router.post("/work-orders/:id/tickets",             ...staffAccess, linkTicket);
 router.delete("/work-orders/:id/tickets/:ticketId", ...staffAccess, unlinkTicket);
+
+// ── Auditoria ──────────────────────────────────────────────────────────────────
+router.get("/audit-logs", authRequired, requireRole("ADMIN"), listAuditLogs);
 
 // ── Analytics ──────────────────────────────────────────────────────────────────
 const analyticsAccess = [authRequired, requireRole("TECHNICIAN", "ADMIN")];

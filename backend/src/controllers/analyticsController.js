@@ -11,8 +11,16 @@ function parseRange(q) {
   return where;
 }
 
+function unitScope(user) {
+  return user.role === "TECHNICIAN" && user.unitId ? { unitId: user.unitId } : {};
+}
+
+function osUnitScope(user) {
+  return user.role === "TECHNICIAN" && user.unitId ? { unitId: user.unitId } : {};
+}
+
 export async function ticketsByUnit(req, res) {
-  const where = parseRange(req.query);
+  const where = { ...parseRange(req.query), ...unitScope(req.user) };
   const data = await prisma.ticket.groupBy({
     by: ["unitId"],
     where,
@@ -33,7 +41,7 @@ export async function ticketsByUnit(req, res) {
 }
 
 export async function ticketsByTechnician(req, res) {
-  const where = parseRange(req.query);
+  const where = { ...parseRange(req.query), ...unitScope(req.user) };
   const data = await prisma.ticket.groupBy({
     by: ["assignedTechId"],
     where,
@@ -54,7 +62,7 @@ export async function ticketsByTechnician(req, res) {
 }
 
 export async function ticketsByDepartment(req, res) {
-  const where = parseRange(req.query);
+  const where = { ...parseRange(req.query), ...unitScope(req.user) };
   const data = await prisma.ticket.groupBy({
     by: ["department"],
     where,
@@ -66,7 +74,7 @@ export async function ticketsByDepartment(req, res) {
 }
 
 export async function ticketsByCategory(req, res) {
-  const where = parseRange(req.query);
+  const where = { ...parseRange(req.query), ...unitScope(req.user) };
   const data = await prisma.ticket.groupBy({
     by: ["categoryId"],
     where,
@@ -87,7 +95,7 @@ export async function ticketsByCategory(req, res) {
 }
 
 export async function avgResolutionByCategory(req, res) {
-  const where = { ...parseRange(req.query), status: "COMPLETED" };
+  const where = { ...parseRange(req.query), ...unitScope(req.user), status: "COMPLETED" };
   const tickets = await prisma.ticket.findMany({
     where,
     select: { categoryId: true, openedAt: true, completedAt: true },
@@ -115,7 +123,7 @@ export async function avgResolutionByCategory(req, res) {
 }
 
 export async function topRequesters(req, res) {
-  const where = { ...parseRange(req.query), openedById: { not: null } };
+  const where = { ...parseRange(req.query), ...unitScope(req.user), openedById: { not: null } };
   const data = await prisma.ticket.groupBy({
     by: ["openedById"],
     where,
@@ -149,13 +157,22 @@ export async function ticketsByDay(req, res) {
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
 
-  const rows = await prisma.$queryRaw`
-    SELECT DATE(openedAt) AS day, COUNT(*) AS total
-    FROM Ticket
-    WHERE openedAt >= ${start} AND openedAt <= ${end}
-    GROUP BY DATE(openedAt)
-    ORDER BY day ASC
-  `;
+  const isTech = req.user.role === "TECHNICIAN" && req.user.unitId;
+  const rows = isTech
+    ? await prisma.$queryRaw`
+        SELECT DATE(openedAt) AS day, COUNT(*) AS total
+        FROM Ticket
+        WHERE openedAt >= ${start} AND openedAt <= ${end} AND unitId = ${req.user.unitId}
+        GROUP BY DATE(openedAt)
+        ORDER BY day ASC
+      `
+    : await prisma.$queryRaw`
+        SELECT DATE(openedAt) AS day, COUNT(*) AS total
+        FROM Ticket
+        WHERE openedAt >= ${start} AND openedAt <= ${end}
+        GROUP BY DATE(openedAt)
+        ORDER BY day ASC
+      `;
 
   // MySQL DATE() returns a JS Date; convert to YYYY-MM-DD string
   const map = new Map(
@@ -183,18 +200,32 @@ export async function ticketsByMonth(req, res) {
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
 
-  const rows = await prisma.$queryRaw`
-    SELECT
-      DATE_FORMAT(openedAt, '%Y-%m') AS month,
-      COUNT(*) AS total,
-      SUM(status = 'COMPLETED') AS completed,
-      SUM(status = 'OPEN') AS open_count,
-      SUM(status = 'IN_PROGRESS') AS in_progress
-    FROM Ticket
-    WHERE openedAt >= ${start} AND openedAt <= ${end}
-    GROUP BY DATE_FORMAT(openedAt, '%Y-%m')
-    ORDER BY month ASC
-  `;
+  const isTech = req.user.role === "TECHNICIAN" && req.user.unitId;
+  const rows = isTech
+    ? await prisma.$queryRaw`
+        SELECT
+          DATE_FORMAT(openedAt, '%Y-%m') AS month,
+          COUNT(*) AS total,
+          SUM(status = 'COMPLETED') AS completed,
+          SUM(status = 'OPEN') AS open_count,
+          SUM(status = 'IN_PROGRESS') AS in_progress
+        FROM Ticket
+        WHERE openedAt >= ${start} AND openedAt <= ${end} AND unitId = ${req.user.unitId}
+        GROUP BY DATE_FORMAT(openedAt, '%Y-%m')
+        ORDER BY month ASC
+      `
+    : await prisma.$queryRaw`
+        SELECT
+          DATE_FORMAT(openedAt, '%Y-%m') AS month,
+          COUNT(*) AS total,
+          SUM(status = 'COMPLETED') AS completed,
+          SUM(status = 'OPEN') AS open_count,
+          SUM(status = 'IN_PROGRESS') AS in_progress
+        FROM Ticket
+        WHERE openedAt >= ${start} AND openedAt <= ${end}
+        GROUP BY DATE_FORMAT(openedAt, '%Y-%m')
+        ORDER BY month ASC
+      `;
 
   res.json(rows.map((r) => ({
     month:      r.month,
@@ -206,7 +237,7 @@ export async function ticketsByMonth(req, res) {
 }
 
 export async function avgResolutionByUnit(req, res) {
-  const where = { ...parseRange(req.query), status: "COMPLETED" };
+  const where = { ...parseRange(req.query), ...unitScope(req.user), status: "COMPLETED" };
   const tickets = await prisma.ticket.findMany({
     where,
     select: { unitId: true, openedAt: true, completedAt: true },
@@ -237,6 +268,7 @@ export async function avgResolutionByUnit(req, res) {
 export async function otherReclassified(req, res) {
   const where = {
     ...parseRange(req.query),
+    ...unitScope(req.user),
     freeTextDescription: { not: null },
   };
   const tickets = await prisma.ticket.findMany({
@@ -283,7 +315,7 @@ const OS_STATUS_LABELS = {
 };
 
 export async function osByStatus(req, res) {
-  const where = parseOsRange(req.query);
+  const where = { ...parseOsRange(req.query), ...osUnitScope(req.user) };
   const data = await prisma.workOrder.groupBy({
     by: ["status"],
     where,
@@ -297,7 +329,7 @@ export async function osByStatus(req, res) {
 }
 
 export async function osByTipo(req, res) {
-  const where = parseOsRange(req.query);
+  const where = { ...parseOsRange(req.query), ...osUnitScope(req.user) };
   const data = await prisma.workOrder.groupBy({
     by: ["tipo"],
     where,
@@ -312,7 +344,7 @@ export async function osByTipo(req, res) {
 }
 
 export async function osByUnit(req, res) {
-  const where = parseOsRange(req.query);
+  const where = { ...parseOsRange(req.query), ...osUnitScope(req.user) };
   const data = await prisma.workOrder.groupBy({
     by: ["unitId"],
     where,
@@ -336,14 +368,24 @@ export async function osByTecnico(req, res) {
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
 
-  const rows = await prisma.$queryRaw`
-    SELECT ot.userId, COUNT(*) AS total
-    FROM OsTecnico ot
-    JOIN WorkOrder wo ON wo.id = ot.osId
-    WHERE wo.createdAt >= ${start} AND wo.createdAt <= ${end}
-    GROUP BY ot.userId
-    ORDER BY total DESC
-  `;
+  const isTech = req.user.role === "TECHNICIAN" && req.user.unitId;
+  const rows = isTech
+    ? await prisma.$queryRaw`
+        SELECT ot.userId, COUNT(*) AS total
+        FROM OsTecnico ot
+        JOIN WorkOrder wo ON wo.id = ot.osId
+        WHERE wo.createdAt >= ${start} AND wo.createdAt <= ${end} AND wo.unitId = ${req.user.unitId}
+        GROUP BY ot.userId
+        ORDER BY total DESC
+      `
+    : await prisma.$queryRaw`
+        SELECT ot.userId, COUNT(*) AS total
+        FROM OsTecnico ot
+        JOIN WorkOrder wo ON wo.id = ot.osId
+        WHERE wo.createdAt >= ${start} AND wo.createdAt <= ${end}
+        GROUP BY ot.userId
+        ORDER BY total DESC
+      `;
 
   const ids = rows.map((r) => Number(r.userId));
   const users = ids.length > 0
@@ -364,19 +406,34 @@ export async function osByMonth(req, res) {
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
 
-  const rows = await prisma.$queryRaw`
-    SELECT
-      DATE_FORMAT(createdAt, '%Y-%m') AS month,
-      COUNT(*) AS total,
-      SUM(status = 'CONCLUIDA')    AS concluida,
-      SUM(status = 'ABERTA')       AS aberta,
-      SUM(status = 'EM_ANDAMENTO') AS em_andamento,
-      SUM(status = 'CANCELADA')    AS cancelada
-    FROM WorkOrder
-    WHERE createdAt >= ${start} AND createdAt <= ${end}
-    GROUP BY DATE_FORMAT(createdAt, '%Y-%m')
-    ORDER BY month ASC
-  `;
+  const isTech = req.user.role === "TECHNICIAN" && req.user.unitId;
+  const rows = isTech
+    ? await prisma.$queryRaw`
+        SELECT
+          DATE_FORMAT(createdAt, '%Y-%m') AS month,
+          COUNT(*) AS total,
+          SUM(status = 'CONCLUIDA')    AS concluida,
+          SUM(status = 'ABERTA')       AS aberta,
+          SUM(status = 'EM_ANDAMENTO') AS em_andamento,
+          SUM(status = 'CANCELADA')    AS cancelada
+        FROM WorkOrder
+        WHERE createdAt >= ${start} AND createdAt <= ${end} AND unitId = ${req.user.unitId}
+        GROUP BY DATE_FORMAT(createdAt, '%Y-%m')
+        ORDER BY month ASC
+      `
+    : await prisma.$queryRaw`
+        SELECT
+          DATE_FORMAT(createdAt, '%Y-%m') AS month,
+          COUNT(*) AS total,
+          SUM(status = 'CONCLUIDA')    AS concluida,
+          SUM(status = 'ABERTA')       AS aberta,
+          SUM(status = 'EM_ANDAMENTO') AS em_andamento,
+          SUM(status = 'CANCELADA')    AS cancelada
+        FROM WorkOrder
+        WHERE createdAt >= ${start} AND createdAt <= ${end}
+        GROUP BY DATE_FORMAT(createdAt, '%Y-%m')
+        ORDER BY month ASC
+      `;
 
   res.json(rows.map((r) => ({
     month:       r.month,

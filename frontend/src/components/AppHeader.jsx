@@ -2,10 +2,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { useSocketConnected } from "../context/SocketContext";
 import { api } from "../lib/api";
 import {
   LayoutDashboard, BarChart2, LogOut, Users,
-  Crown, Sun, Moon, Building2, ChevronDown, UserCircle, Ticket, KeyRound, ClipboardList, Lightbulb, Settings, Tag,
+  Crown, Sun, Moon, Building2, ChevronDown, UserCircle, Ticket, KeyRound, ClipboardList, Lightbulb, Settings, Tag, Shield,
 } from "lucide-react";
 
 const ROLE_LABEL = {
@@ -23,13 +24,14 @@ export default function AppHeader() {
   const { dark, toggle } = useTheme();
   const loc = useLocation();
   const nav = useNavigate();
-  const [pendingCount, setPendingCount] = useState(0);
   const [resetCount,   setResetCount]   = useState(0);
   const [osOpenCount,  setOsOpenCount]  = useState(0);
   const [userOpen,   setUserOpen]   = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const userRef   = useRef(null);
   const configRef = useRef(null);
+
+  const socketConnected = useSocketConnected();
 
   const isStaff     = STAFF_ROLES.includes(user?.role);
   const isFullStaff = FULL_STAFF_ROLES.includes(user?.role);
@@ -48,7 +50,6 @@ export default function AppHeader() {
   useEffect(() => {
     if (!isAdmin) return;
     function fetchCounts() {
-      api.get("/users?role=USER&active=true").then((r) => setPendingCount(r.data.filter((u) => !u.unit).length));
       api.get("/password-reset-requests").then((r) => setResetCount(r.data.length)).catch(() => {});
     }
     fetchCounts();
@@ -68,7 +69,7 @@ export default function AppHeader() {
 
   const isActive = (path) => loc.pathname === path;
   const isActiveSearch = (path, search) => loc.pathname === path && loc.search.includes(search);
-  const configActive = isActive("/painel/setores") || isActive("/painel/n1") || isActive("/painel/categorias") || isActiveSearch("/painel/usuarios", "tab=resets");
+  const configActive = isActive("/painel/setores") || isActive("/painel/n1") || isActive("/painel/categorias") || isActive("/painel/auditoria") || isActiveSearch("/painel/usuarios", "tab=resets");
 
   const navCls = (active) =>
     `relative flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
@@ -133,14 +134,6 @@ export default function AppHeader() {
           {/* ADMIN only */}
           {isAdmin && (
             <Link to="/painel/usuarios" className={navCls(isActive("/painel/usuarios") && !loc.search.includes("tab=resets"))}>
-              {pendingCount > 0 && (
-                <span
-                  className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold"
-                  title={`${pendingCount} usuário${pendingCount !== 1 ? "s" : ""} sem núcleo atribuído`}
-                >
-                  {pendingCount > 9 ? "9+" : pendingCount}
-                </span>
-              )}
               <Users size={15} />
               <span className="hidden sm:inline">Usuários</span>
             </Link>
@@ -213,6 +206,18 @@ export default function AppHeader() {
                       </span>
                     )}
                   </Link>
+                  <Link
+                    to="/painel/auditoria"
+                    onClick={() => setConfigOpen(false)}
+                    className={`flex items-center gap-2.5 px-3.5 py-2.5 text-sm transition ${
+                      isActive("/painel/auditoria")
+                        ? "bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 font-medium"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <Shield size={15} />
+                    Auditoria
+                  </Link>
                 </div>
               )}
             </div>
@@ -222,10 +227,25 @@ export default function AppHeader() {
         {/* ── Lado direito ── */}
         <div className="flex items-center gap-2 shrink-0">
 
+          {/* Indicador de conexão em tempo real — apenas staff */}
+          {isStaff && (
+            <div
+              title={socketConnected ? "Atualizações em tempo real ativas" : "Sem conexão em tempo real"}
+              aria-label={socketConnected ? "Conectado" : "Desconectado"}
+              className="flex items-center gap-1.5 select-none"
+            >
+              <span className={`h-2 w-2 rounded-full ${socketConnected ? "bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]" : "bg-red-400"}`} />
+              <span className="hidden lg:inline text-[11px] text-slate-400 dark:text-gray-500">
+                {socketConnected ? "Online" : "Offline"}
+              </span>
+            </div>
+          )}
+
           {/* Toggle tema */}
           <button
             onClick={toggle}
             title={dark ? "Modo claro" : "Modo escuro"}
+            aria-label={dark ? "Ativar modo claro" : "Ativar modo escuro"}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800 transition"
           >
             {dark ? <Sun size={16} /> : <Moon size={16} />}
@@ -279,6 +299,7 @@ export default function AppHeader() {
           <button
             onClick={async () => { await logout(); nav("/login"); }}
             title="Sair"
+            aria-label="Sair da conta"
             className="sm:hidden flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
           >
             <LogOut size={16} />

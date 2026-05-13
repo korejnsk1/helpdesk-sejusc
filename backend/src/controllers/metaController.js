@@ -39,12 +39,13 @@ function slugify(name) {
 
 export async function updateCategory(req, res) {
   const id = Number(req.params.id);
-  const { n1Tips, name, allowsFreeText } = req.body;
+  const { n1Tips, name, allowsFreeText, slaHours } = req.body;
   const cat = await prisma.category.findUnique({ where: { id } });
   if (!cat) return res.status(404).json({ error: "Categoria não encontrada" });
   const data = {};
   if (n1Tips !== undefined)        data.n1Tips        = n1Tips || null;
   if (allowsFreeText !== undefined) data.allowsFreeText = Boolean(allowsFreeText);
+  if (slaHours !== undefined)       data.slaHours       = slaHours ? Number(slaHours) : null;
   if (name !== undefined) {
     const trimmed = name.trim();
     if (!trimmed) return res.status(400).json({ error: "Nome obrigatório" });

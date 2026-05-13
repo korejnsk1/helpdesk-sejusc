@@ -154,9 +154,9 @@ export default function RegisterPage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950 px-4">
         <div className="card max-w-md w-full p-8 text-center space-y-4">
           <CheckCircle2 className="h-14 w-14 text-green-500 mx-auto" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Cadastro realizado!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Conta criada!</h2>
           <p className="text-gray-600 dark:text-gray-400">
-            Sua conta foi criada com sucesso. Você já pode acessar o sistema.
+            Sua conta foi criada com sucesso. Você já pode fazer login.
           </p>
           <button onClick={() => navigate("/login")} className="btn-primary w-full">
             Ir para o login
@@ -193,7 +193,7 @@ export default function RegisterPage() {
           <img src="/logo-gov.svg" alt="Logo" className="h-12 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Criar conta</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Preencha os dados para solicitar acesso ao sistema de chamados
+            Preencha os dados abaixo para criar sua conta.
           </p>
         </div>
 

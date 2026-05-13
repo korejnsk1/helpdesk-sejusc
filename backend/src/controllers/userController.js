@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../config/prisma.js";
 import { stripCpf, isValidCpf, maskCpf } from "../utils/cpf.js";
 import { toTitleCase } from "../utils/name.js";
+import { createAuditLog } from "./auditController.js";
 
 const VALID_PREFIXOS = ["GOVERNO", "TERCEIRIZADO", "ESTAGIARIO"];
 
@@ -19,7 +20,7 @@ const registerSchema = z.object({
   isChefe:      z.boolean().optional().default(false),
 });
 
-// POST /api/auth/register — público, cria conta de usuário ativa imediatamente
+// POST /api/auth/register — público, cria conta ativa imediatamente
 export async function register(req, res) {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -143,6 +144,13 @@ export async function updateUser(req, res) {
     },
   });
 
+  const changedFields = Object.keys(data).join(", ");
+  await createAuditLog(prisma, {
+    actorId: req.user.id, actorName: req.user.name,
+    action: "UPDATE_USER", targetType: "User", targetId: id,
+    details: `Campos alterados: ${changedFields} | Usuário: ${user.name}`,
+  });
+
   res.json({
     id: updated.id,
     name: updated.name,
@@ -170,6 +178,11 @@ export async function deleteUser(req, res) {
     return res.status(403).json({ error: "Não é possível excluir um administrador" });
   }
   await prisma.user.delete({ where: { id } });
+  await createAuditLog(prisma, {
+    actorId: req.user.id, actorName: req.user.name,
+    action: "DELETE_USER", targetType: "User", targetId: id,
+    details: `Usuário excluído: ${user.name} (CPF: ${user.cpf})`,
+  });
   res.json({ ok: true });
 }
 
@@ -243,7 +256,7 @@ export async function changePassword(req, res) {
 export async function myTickets(req, res) {
   const tickets = await prisma.ticket.findMany({
     where: { openedById: req.user.id },
-    include: { category: true, unit: true },
+    include: { category: true, unit: true, feedback: { select: { id: true } } },
     orderBy: { openedAt: "desc" },
     take: 50,
   });
@@ -251,11 +264,15 @@ export async function myTickets(req, res) {
     id: t.id,
     ticketNumber: t.ticketNumber,
     status: t.status,
+    priority: t.priority,
     category: t.category?.name,
+    categoryId: t.category?.id,
     department: t.department,
     unit: t.unit?.name || null,
+    slaDeadline: t.slaDeadline,
     openedAt: t.openedAt,
     completedAt: t.completedAt,
+    hasFeedback: !!t.feedback,
   })));
 }
 

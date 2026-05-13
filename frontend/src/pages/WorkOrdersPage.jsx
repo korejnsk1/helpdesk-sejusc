@@ -340,20 +340,46 @@ export default function WorkOrdersPage() {
         {/* Empty */}
         {!loading && visible.length === 0 && (
           <div className="card p-14 text-center">
-            <div className="text-4xl mb-3">📋</div>
-            <div className="font-semibold text-slate-700 dark:text-gray-300">Nenhuma OS encontrada</div>
-            <p className="text-sm text-slate-400 dark:text-gray-500 mt-1">Crie uma nova ordem de serviço clicando em "Nova OS"</p>
+            <div className="flex justify-center mb-4">
+              <ClipboardList size={44} className="text-slate-300 dark:text-gray-700" />
+            </div>
+            <div className="font-semibold text-slate-700 dark:text-gray-300">
+              {(hasFilters || statusFilter) ? "Nenhuma OS encontrada com os filtros ativos" : "Nenhuma OS encontrada"}
+            </div>
+            <div className="text-sm text-slate-400 dark:text-gray-500 mt-2">
+              {(hasFilters || statusFilter) ? (
+                <div className="space-y-1">
+                  {statusFilter && <p>Status: <strong className="text-slate-600 dark:text-gray-300">{STATUS_LABEL[statusFilter]}</strong></p>}
+                  {tipoFilter && <p>Tipo: <strong className="text-slate-600 dark:text-gray-300">{TIPO_LABELS[tipoFilter]}</strong></p>}
+                  {unitFilter && <p>Núcleo: <strong className="text-slate-600 dark:text-gray-300">{units.find((u) => String(u.id) === unitFilter)?.name}</strong></p>}
+                  <button
+                    onClick={() => { setTipo(""); setUnit(""); setStatus(""); }}
+                    className="mt-2 text-brand-600 dark:text-brand-400 hover:underline font-medium"
+                  >
+                    Limpar filtros
+                  </button>
+                </div>
+              ) : (
+                'Crie uma nova ordem de serviço clicando em "Nova OS"'
+              )}
+            </div>
           </div>
         )}
 
         {/* Lista */}
         {!loading && visible.length > 0 && (
           <div className="card divide-y divide-slate-100 dark:divide-gray-700/60">
-            {visible.map((os) => (
+            {visible.map((os) => {
+              const overdue = os.prazo && new Date(os.prazo) < new Date() && !["CONCLUIDA", "CANCELADA"].includes(os.status);
+              return (
               <Link
                 key={os.id}
                 to={`/painel/os/${os.id}`}
-                className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-gray-800/60 transition"
+                className={`group flex items-center gap-3 px-4 py-3.5 transition ${
+                  overdue
+                    ? "bg-red-50/60 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    : "hover:bg-slate-50 dark:hover:bg-gray-800/60"
+                }`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -403,7 +429,8 @@ export default function WorkOrdersPage() {
 
                 <ChevronRight size={16} className="text-slate-300 dark:text-gray-600 group-hover:text-brand-500 dark:group-hover:text-brand-400 shrink-0 transition" />
               </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

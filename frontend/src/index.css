@@ -59,8 +59,8 @@
 }
 
 .dark .field-input {
-  background-color: #1f2937;
-  border-color: #374151;
+  background-color: #1e293b;
+  border-color: #334155;
   color: #f1f5f9;
 }
 
@@ -105,3 +105,16 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-slide-in { animation: slide-in 0.2s ease-out; }
+
+/* ── Focus visible ring global ──────────────────────────────────────────── */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* ── Skeleton loader ─────────────────────────────────────────────────────── */
+.skeleton {
+  @apply bg-slate-200 dark:bg-gray-700 rounded animate-pulse;
+}

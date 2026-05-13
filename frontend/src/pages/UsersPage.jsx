@@ -147,21 +147,22 @@ export default function UsersPage() {
   }
 
   // ── Agrupamentos de tabs ─────────────────────────────────────────────────
-  const chefes   = users.filter((u) => u.role === "CHEFE_SETOR" || u.isChefe);
-  const usuarios  = users.filter((u) => u.role === "USER");
-  const tecnicos  = users.filter((u) => u.role === "TECHNICIAN");
-  const admins    = users.filter((u) => u.role === "ADMIN");
+  const active    = users.filter((u) => u.active);
+  const chefes    = active.filter((u) => u.role === "CHEFE_SETOR" || u.isChefe);
+  const usuarios  = active.filter((u) => u.role === "USER");
+  const tecnicos  = active.filter((u) => u.role === "TECHNICIAN");
+  const admins    = active.filter((u) => u.role === "ADMIN");
 
-  const tabData = { all: users, usuarios, tecnicos, admins, chefes };
+  const tabData = { all: active, usuarios, tecnicos, admins, chefes };
   const tabs = [
-    { key: "all",      label: "Todos",           count: users.length  },
+    { key: "all",      label: "Todos",          count: active.length   },
     { key: "usuarios", label: "Usuários",        count: usuarios.length },
     { key: "tecnicos", label: "Técnicos",        count: tecnicos.length },
-    { key: "chefes",   label: "Chefes de Setor", count: chefes.length  },
-    { key: "admins",   label: "Admins",          count: admins.length  },
+    { key: "chefes",   label: "Chefes de Setor", count: chefes.length   },
+    { key: "admins",   label: "Admins",          count: admins.length   },
   ];
 
-  const displayList = tabData[tab] ?? users;
+  const displayList = tabData[tab] ?? active;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
@@ -310,15 +311,19 @@ export default function UsersPage() {
                 onClick={() => { setTab(t.key); setSelectedUser(null); }}
                 className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
                   tab === t.key
-                    ? "bg-brand-600 text-white"
-                    : "bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300 ring-1 ring-slate-200 dark:ring-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700"
+                    ? t.alert ? "bg-amber-500 text-white" : "bg-brand-600 text-white"
+                    : t.alert
+                      ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 ring-1 ring-amber-300 dark:ring-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                      : "bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300 ring-1 ring-slate-200 dark:ring-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700"
                 }`}
               >
                 {t.label}
                 <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
                   tab === t.key
                     ? "bg-white/20 text-white"
-                    : "bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300"
+                    : t.alert
+                      ? "bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200"
+                      : "bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300"
                 }`}>
                   {t.count}
                 </span>

@@ -4,14 +4,35 @@ import { api } from "../lib/api";
 import { useSocket } from "../context/SocketContext";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
-import { StatusBadge, KpiCard, Spinner } from "../components/ui";
+import { StatusBadge, KpiCard, Spinner, TicketSkeletonRow } from "../components/ui";
 import AppHeader from "../components/AppHeader";
 import { formatElapsed } from "../lib/statuses";
 import {
   Ticket, AlertCircle, Activity, CheckCircle2,
   ChevronRight, Clock, RefreshCw, Filter, History,
-  ShieldCheck, ThumbsUp, ThumbsDown, X,
+  ShieldCheck, ThumbsUp, ThumbsDown, X, Search, Download,
 } from "lucide-react";
+
+function exportCsv(tickets) {
+  const header = ["Número","Solicitante","Setor","Categoria","Subcategoria","Status","Técnico","Aberto em","Concluído em"];
+  const rows = tickets.map((t) => [
+    t.ticketNumber,
+    t.requesterName,
+    t.department,
+    t.category?.name ?? "",
+    t.subcategory?.name ?? "",
+    t.status,
+    t.technician?.name ?? "",
+    t.openedAt ? new Date(t.openedAt).toLocaleString("pt-BR") : "",
+    t.completedAt ? new Date(t.completedAt).toLocaleString("pt-BR") : "",
+  ]);
+  const csv = [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `chamados_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
 
 const ACTIVE_STATUSES = ["OPEN", "VIEWED", "EN_ROUTE", "IN_SERVICE"];
 
@@ -239,11 +260,14 @@ export default function DashboardPage() {
 
   const [tickets, setTickets]         = useState([]);
   const [history, setHistory]         = useState([]);
+  const [histCursor, setHistCursor]   = useState(null);
+  const [histHasMore, setHistHasMore] = useState(false);
   const [loading, setLoading]         = useState(true);
   const [histLoading, setHistLoading] = useState(false);
   const [filter, setFilter]           = useState("active");
   const [histRange, setHistRange]     = useState("30");
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Filtros avançados
   const [departments, setDepartments]     = useState([]);
@@ -280,17 +304,21 @@ export default function DashboardPage() {
     }
   }, [categoryFilter]);
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (append = false, cursor = null) => {
     setHistLoading(true);
     try {
-      const params = { status: "COMPLETED", limit: 500 };
+      const params = { status: "COMPLETED", limit: 50 };
       if (histRange !== "0") {
         const from = new Date(Date.now() - Number(histRange) * 86400000);
         from.setHours(0, 0, 0, 0);
         params.from = from.toISOString();
       }
+      if (cursor) params.cursor = cursor;
       const res = await api.get("/tickets", { params });
-      setHistory(res.data.tickets);
+      const { tickets: rows, nextCursor } = res.data;
+      setHistory((prev) => append ? [...prev, ...rows] : rows);
+      setHistCursor(nextCursor);
+      setHistHasMore(!!nextCursor);
     } finally {
       setHistLoading(false);
     }
@@ -304,7 +332,7 @@ export default function DashboardPage() {
 
   // Carrega histórico ao trocar para essa aba ou mudar o período
   useEffect(() => {
-    if (filter === "history") loadHistory();
+    if (filter === "history") { setHistory([]); setHistCursor(null); loadHistory(false, null); }
   }, [filter, loadHistory, histRange]);
 
   // Carrega tickets e escuta socket (sem polling)
@@ -347,6 +375,15 @@ export default function DashboardPage() {
               : filter === "history"   ? history
               : tickets;
   if (deptFilter && filter !== "history") visible = visible.filter((t) => t.department === deptFilter);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    visible = visible.filter((t) =>
+      t.ticketNumber?.toLowerCase().includes(q) ||
+      t.requesterName?.toLowerCase().includes(q) ||
+      t.department?.toLowerCase().includes(q) ||
+      t.category?.name?.toLowerCase().includes(q)
+    );
+  }
 
   // Agrupar por unidade
   const byUnit = visible.reduce((acc, t) => {
@@ -453,6 +490,26 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Busca textual */}
+          <div className="relative">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-500 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por número, solicitante, setor ou categoria..."
+              className="field-input pl-8 py-1.5 text-xs w-full"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
           {/* Filtros avançados */}
           <div className="flex items-center gap-2 flex-wrap">
             <Filter size={13} className="text-slate-400 dark:text-gray-500 shrink-0" />
@@ -476,39 +533,83 @@ export default function DashboardPage() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            {hasFilters && (
+            {(hasFilters || searchQuery) && (
               <button
-                onClick={() => { setDeptFilter(""); setCategoryFilter(""); }}
+                onClick={() => { setDeptFilter(""); setCategoryFilter(""); setSearchQuery(""); }}
                 className="text-xs text-slate-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition"
               >
                 Limpar filtros
               </button>
             )}
+            <button
+              onClick={() => exportCsv(visible)}
+              disabled={visible.length === 0}
+              className="ml-auto flex items-center gap-1.5 text-xs text-slate-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition disabled:opacity-40"
+              title="Exportar lista atual como CSV"
+            >
+              <Download size={13} /> CSV
+            </button>
           </div>
         </div>
 
-        {/* Loading */}
+        {/* Loading — skeleton rows */}
         {(loading || (filter === "history" && histLoading)) && (
-          <div className="flex items-center justify-center py-16">
-            <Spinner className="h-8 w-8" />
+          <div className="card divide-y divide-slate-100 dark:divide-gray-700/60">
+            {[...Array(6)].map((_, i) => <TicketSkeletonRow key={i} />)}
           </div>
         )}
 
         {/* Empty state */}
-        {!(loading || (filter === "history" && histLoading)) && visible.length === 0 && (
-          <div className="card p-14 text-center">
-            <div className="text-4xl mb-3">
-              {filter === "completed" ? "✅" : filter === "active" ? "🎉" : "📭"}
+        {!(loading || (filter === "history" && histLoading)) && visible.length === 0 && (() => {
+          const hasActiveFilters = deptFilter || categoryFilter || searchQuery;
+          const EmptyIcon = hasActiveFilters ? Search
+            : filter === "completed" ? CheckCircle2
+            : filter === "history"   ? History
+            : Ticket;
+          return (
+            <div className="card p-14 text-center">
+              <div className="flex justify-center mb-4">
+                <EmptyIcon size={44} className="text-slate-300 dark:text-gray-700" />
+              </div>
+              <div className="font-semibold text-slate-700 dark:text-gray-300">
+                {hasActiveFilters
+                  ? "Nenhum chamado encontrado com os filtros ativos"
+                  : filter === "completed" ? "Nenhum chamado concluído ainda"
+                  : filter === "active"    ? "Nenhum chamado ativo no momento"
+                  : filter === "history"   ? "Nenhum chamado no histórico"
+                  : "Nenhum chamado hoje"}
+              </div>
+              <div className="text-sm text-slate-400 dark:text-gray-500 mt-2">
+                {hasActiveFilters ? (
+                  <div className="space-y-1">
+                    {deptFilter && <p>Setor: <strong className="text-slate-600 dark:text-gray-300">{deptFilter}</strong></p>}
+                    {categoryFilter && <p>Categoria: <strong className="text-slate-600 dark:text-gray-300">{categories.find((c) => String(c.id) === categoryFilter)?.name}</strong></p>}
+                    {searchQuery && <p>Busca: <strong className="text-slate-600 dark:text-gray-300">"{searchQuery}"</strong></p>}
+                    <button
+                      onClick={() => { setDeptFilter(""); setCategoryFilter(""); setSearchQuery(""); }}
+                      className="mt-2 text-brand-600 dark:text-brand-400 hover:underline font-medium"
+                    >
+                      Limpar filtros
+                    </button>
+                  </div>
+                ) : (
+                  filter === "active" ? "Todos os chamados estão concluídos" : "Os chamados aparecerão aqui quando chegarem"
+                )}
+              </div>
             </div>
-            <div className="font-semibold text-slate-700 dark:text-gray-300">
-              {filter === "completed" ? "Nenhum chamado concluído ainda" :
-               filter === "active"    ? "Nenhum chamado ativo no momento" :
-               filter === "history"   ? "Nenhum chamado no histórico" :
-               "Nenhum chamado hoje"}
-            </div>
-            <p className="text-sm text-slate-400 dark:text-gray-500 mt-1">
-              {filter === "active" ? "Todos os chamados estão concluídos 🎉" : "Os chamados aparecerão aqui quando chegarem"}
-            </p>
+          );
+        })()}
+
+        {/* Carregar mais — apenas no histórico */}
+        {filter === "history" && !histLoading && histHasMore && (
+          <div className="flex flex-col items-center gap-1 pt-2">
+            <p className="text-xs text-slate-400 dark:text-gray-500">{history.length} carregados · mais disponíveis</p>
+            <button
+              onClick={() => loadHistory(true, histCursor)}
+              className="flex items-center gap-1.5 text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-medium transition"
+            >
+              <RefreshCw size={13} /> Carregar mais 50
+            </button>
           </div>
         )}
 
@@ -554,17 +655,41 @@ export default function DashboardPage() {
   );
 }
 
+const PRIORITY_MAP = {
+  LOW:    { label: "Baixa",   cls: "bg-slate-100 dark:bg-gray-700 text-slate-500 dark:text-gray-400" },
+  MEDIUM: { label: "Média",   cls: "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" },
+  HIGH:   { label: "Alta",    cls: "bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400" },
+  URGENT: { label: "Urgente", cls: "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-semibold" },
+};
+
+function PriorityBadge({ priority }) {
+  if (!priority || priority === "MEDIUM") return null;
+  const p = PRIORITY_MAP[priority];
+  if (!p) return null;
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${p.cls}`}>
+      {p.label}
+    </span>
+  );
+}
+
 function TicketRow({ ticket: t }) {
   return (
     <Link
       to={`/painel/chamado/${t.id}`}
-      className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-gray-800/60 transition"
+      className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-gray-800/60 transition-colors duration-150"
     >
-      <div className={`w-1 self-stretch rounded-full shrink-0 ${statusColor(t.status)}`} />
+      <div className="flex gap-0.5 self-stretch shrink-0">
+        <div className={`w-1 rounded-full ${statusColor(t.status)}`} />
+        {(t.priority === "URGENT" || t.priority === "HIGH") && (
+          <div className={`w-1 rounded-full ${t.priority === "URGENT" ? "bg-red-500" : "bg-orange-400"}`} />
+        )}
+      </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-mono text-slate-400 dark:text-gray-500">{t.ticketNumber}</span>
           <StatusBadge status={t.status} />
+          <PriorityBadge priority={t.priority} />
         </div>
         <div className="text-sm font-medium text-slate-800 dark:text-gray-100 mt-0.5 truncate">
           {t.requesterName}

@@ -353,7 +353,7 @@ export default function NewTicketPage() {
   const [categories,   setCategories]   = useState([]);
   const [departments,  setDepartments]  = useState([]);
   const [screen,       setScreen]       = useState("category");
-  const [form,         setForm]         = useState({ categoryId: null, subcategoryId: null, anyDeskCode: "", freeTextDescription: "" });
+  const [form,         setForm]         = useState({ categoryId: null, subcategoryId: null, anyDeskCode: "", freeTextDescription: "", priority: "MEDIUM" });
   const [extraFields,  setExtraFields]  = useState({});
   const [error,        setError]        = useState("");
   const [submitting,   setSubmitting]   = useState(false);
@@ -396,6 +396,7 @@ export default function NewTicketPage() {
         categoryId:    form.categoryId,
         subcategoryId: (selectedCategory?.allowsFreeText || isRemote) ? null : form.subcategoryId,
         anyDeskCode:   isRemote ? form.anyDeskCode.trim() : null,
+        priority:      form.priority,
       };
 
       if (isRemote) {
@@ -721,6 +722,29 @@ export default function NewTicketPage() {
                   )}
                 </div>
               )}
+
+              {/* Prioridade */}
+              <div>
+                <label className="field-label mb-2">Prioridade</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { value: "LOW",    label: "Baixa",   cls: "border-slate-300 dark:border-gray-600 text-slate-600 dark:text-gray-400 data-[sel=true]:border-slate-500 data-[sel=true]:bg-slate-100 dark:data-[sel=true]:bg-gray-700 data-[sel=true]:text-slate-800 dark:data-[sel=true]:text-gray-100" },
+                    { value: "MEDIUM", label: "Média",   cls: "border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 data-[sel=true]:border-blue-500 data-[sel=true]:bg-blue-50 dark:data-[sel=true]:bg-blue-900/20 data-[sel=true]:text-blue-700 dark:data-[sel=true]:text-blue-300" },
+                    { value: "HIGH",   label: "Alta",    cls: "border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 data-[sel=true]:border-orange-500 data-[sel=true]:bg-orange-50 dark:data-[sel=true]:bg-orange-900/20 data-[sel=true]:text-orange-700 dark:data-[sel=true]:text-orange-300" },
+                    { value: "URGENT", label: "Urgente", cls: "border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 data-[sel=true]:border-red-500 data-[sel=true]:bg-red-50 dark:data-[sel=true]:bg-red-900/20 data-[sel=true]:text-red-700 dark:data-[sel=true]:text-red-300" },
+                  ].map(({ value, label, cls }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      data-sel={form.priority === value ? "true" : "false"}
+                      onClick={() => setForm((f) => ({ ...f, priority: value }))}
+                      className={`rounded-lg border-2 py-2 text-xs font-semibold transition ${cls}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <Alert message={error} />
 

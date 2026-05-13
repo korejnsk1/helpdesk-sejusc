@@ -5,26 +5,30 @@ import { Spinner, Alert } from "../components/ui";
 import { useToast } from "../context/ToastContext";
 import {
   GripVertical, ChevronDown, Plus, Trash2, Pencil, Check, X,
-  Monitor, Wifi, KeyRound, HelpCircle, MonitorSmartphone, Printer,
-  Tag, ToggleLeft, ToggleRight,
+  Monitor, Wifi, KeyRound, HelpCircle, MonitorSmartphone, Printer, Server, BookOpen,
+  Tag, ToggleLeft, ToggleRight, Clock,
 } from "lucide-react";
 
 const CAT_ICONS = {
-  HARDWARE: Monitor,
-  NETWORK:  Wifi,
-  ACCESS:   KeyRound,
-  REMOTE:   MonitorSmartphone,
-  PRINTER:  Printer,
-  OTHER:    HelpCircle,
+  HARDWARE:  Monitor,
+  NETWORK:   Wifi,
+  NETSERVER: Server,
+  ACCESS:    KeyRound,
+  REMOTE:    MonitorSmartphone,
+  PRINTER:   Printer,
+  SIGED:     BookOpen,
+  OTHER:     HelpCircle,
 };
 
 const CAT_COLORS = {
-  HARDWARE: "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
-  NETWORK:  "bg-blue-100   dark:bg-blue-900/30   text-blue-600   dark:text-blue-400",
-  ACCESS:   "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400",
-  REMOTE:   "bg-cyan-100   dark:bg-cyan-900/30   text-cyan-600   dark:text-cyan-400",
-  PRINTER:  "bg-green-100  dark:bg-green-900/30  text-green-600  dark:text-green-400",
-  OTHER:    "bg-slate-100  dark:bg-gray-800      text-slate-500  dark:text-gray-400",
+  HARDWARE:  "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
+  NETWORK:   "bg-blue-100   dark:bg-blue-900/30   text-blue-600   dark:text-blue-400",
+  NETSERVER: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400",
+  ACCESS:    "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400",
+  REMOTE:    "bg-cyan-100   dark:bg-cyan-900/30   text-cyan-600   dark:text-cyan-400",
+  PRINTER:   "bg-green-100  dark:bg-green-900/30  text-green-600  dark:text-green-400",
+  SIGED:     "bg-amber-100  dark:bg-amber-900/30  text-amber-600  dark:text-amber-400",
+  OTHER:     "bg-slate-100  dark:bg-gray-800      text-slate-500  dark:text-gray-400",
 };
 
 function getCatIcon(code) { return CAT_ICONS[code] || Tag; }
@@ -219,6 +223,8 @@ function CategoryCard({ cat, onUpdate, onDelete, onGripPointerDown, isDragging }
   const [deleteErr,  setDeleteErr] = useState("");
   const [savingSub,  setSavingSub] = useState(false);
   const [subcats,    setSubcats]   = useState(cat.subcategories || []);
+  const [slaDraft,   setSlaDraft]  = useState(cat.slaHours != null ? String(cat.slaHours) : "");
+  const [slaEditing, setSlaEditing] = useState(false);
 
   useEffect(() => { setSubcats(cat.subcategories || []); }, [cat.subcategories]);
 
@@ -238,6 +244,25 @@ function CategoryCard({ cat, onUpdate, onDelete, onGripPointerDown, isDragging }
       addToast({ message: "Categoria renomeada", type: "success" });
     } catch (e) {
       addToast({ message: e.response?.data?.error || "Erro ao renomear", type: "error" });
+    }
+  }
+
+  async function saveSlaHours() {
+    setSlaEditing(false);
+    const val = slaDraft.trim();
+    const parsed = val === "" ? null : Number(val);
+    if (val !== "" && (isNaN(parsed) || parsed <= 0)) {
+      addToast({ message: "SLA inválido — informe um número positivo", type: "error" });
+      setSlaDraft(cat.slaHours != null ? String(cat.slaHours) : "");
+      return;
+    }
+    if (parsed === cat.slaHours) return;
+    try {
+      const res = await api.patch(`/categories/${cat.id}`, { slaHours: parsed });
+      onUpdate({ ...cat, slaHours: res.data.slaHours });
+      addToast({ message: parsed ? `SLA definido: ${parsed}h` : "SLA removido", type: "success" });
+    } catch (e) {
+      addToast({ message: e.response?.data?.error || "Erro ao salvar SLA", type: "error" });
     }
   }
 
@@ -349,7 +374,42 @@ function CategoryCard({ cat, onUpdate, onDelete, onGripPointerDown, isDragging }
 
       {/* Expanded body */}
       {open && (
-        <div className="border-t border-slate-100 dark:border-gray-700/60 px-5 py-4 space-y-3">
+        <div className="border-t border-slate-100 dark:border-gray-700/60 px-5 py-4 space-y-4">
+
+          {/* SLA */}
+          <div className="flex items-center gap-3">
+            <Clock size={14} className="text-slate-400 dark:text-gray-500 shrink-0" />
+            <span className="text-sm text-slate-500 dark:text-gray-400 w-20 shrink-0">SLA (horas)</span>
+            {slaEditing ? (
+              <div className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  type="number"
+                  min="1"
+                  value={slaDraft}
+                  onChange={(e) => setSlaDraft(e.target.value)}
+                  onBlur={saveSlaHours}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveSlaHours(); if (e.key === "Escape") { setSlaEditing(false); setSlaDraft(cat.slaHours != null ? String(cat.slaHours) : ""); } }}
+                  placeholder="Ex: 24"
+                  className="field-input py-1 text-sm w-24"
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setSlaEditing(true)}
+                className="group flex items-center gap-1.5 text-sm text-slate-700 dark:text-gray-200 rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-gray-800 transition"
+                title="Clique para editar SLA"
+              >
+                {cat.slaHours ? (
+                  <span className="font-medium">{cat.slaHours}h</span>
+                ) : (
+                  <span className="text-slate-400 dark:text-gray-500 italic">Sem prazo</span>
+                )}
+                <Pencil size={11} className="opacity-0 group-hover:opacity-60 transition text-slate-400" />
+              </button>
+            )}
+          </div>
+
           {cat.allowsFreeText ? (
             <p className="text-sm text-slate-400 dark:text-gray-500 italic">
               O usuário descreve o problema livremente — nenhuma subcategoria é exibida.

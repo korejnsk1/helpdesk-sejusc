@@ -5,25 +5,29 @@ import { Alert, Spinner } from "../components/ui";
 import {
   Plus, X, ChevronDown, Save,
   Lightbulb, CheckCircle2, ArrowUp, ArrowDown,
-  Monitor, Wifi, KeyRound, HelpCircle, MonitorSmartphone, Printer,
+  Monitor, Wifi, KeyRound, HelpCircle, MonitorSmartphone, Printer, Server, BookOpen,
 } from "lucide-react";
 
 const CAT_ICONS = {
-  HARDWARE: Monitor,
-  NETWORK:  Wifi,
-  ACCESS:   KeyRound,
-  OTHER:    HelpCircle,
-  REMOTE:   MonitorSmartphone,
-  PRINTER:  Printer,
+  HARDWARE:  Monitor,
+  NETWORK:   Wifi,
+  NETSERVER: Server,
+  ACCESS:    KeyRound,
+  OTHER:     HelpCircle,
+  REMOTE:    MonitorSmartphone,
+  PRINTER:   Printer,
+  SIGED:     BookOpen,
 };
 
 const CAT_COLORS = {
-  HARDWARE: "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
-  NETWORK:  "bg-blue-100   dark:bg-blue-900/30   text-blue-600   dark:text-blue-400",
-  ACCESS:   "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400",
-  OTHER:    "bg-slate-100  dark:bg-gray-700       text-slate-500  dark:text-gray-400",
-  REMOTE:   "bg-cyan-100   dark:bg-cyan-900/30   text-cyan-600   dark:text-cyan-400",
-  PRINTER:  "bg-green-100  dark:bg-green-900/30  text-green-600  dark:text-green-400",
+  HARDWARE:  "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
+  NETWORK:   "bg-blue-100   dark:bg-blue-900/30   text-blue-600   dark:text-blue-400",
+  NETSERVER: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400",
+  ACCESS:    "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400",
+  OTHER:     "bg-slate-100  dark:bg-gray-700       text-slate-500  dark:text-gray-400",
+  REMOTE:    "bg-cyan-100   dark:bg-cyan-900/30   text-cyan-600   dark:text-cyan-400",
+  PRINTER:   "bg-green-100  dark:bg-green-900/30  text-green-600  dark:text-green-400",
+  SIGED:     "bg-amber-100  dark:bg-amber-900/30  text-amber-600  dark:text-amber-400",
 };
 
 export default function N1Page() {

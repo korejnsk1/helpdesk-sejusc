@@ -3,7 +3,9 @@ import { prisma } from "../config/prisma.js";
 import { maskCpf } from "../utils/cpf.js";
 import { buildTicketNumber } from "../utils/ticketNumber.js";
 import { nextTicketSeq } from "../utils/nextSequence.js";
-import { STATUS, canTransition, allowedNext } from "../utils/ticketStateMachine.js";
+import { STATUS, canTransition, allowedNext, canReopen } from "../utils/ticketStateMachine.js";
+
+const VALID_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 
 const createTicketSchema = z.object({
   departmentId:        z.number().int().positive().optional().nullable(),
@@ -12,6 +14,7 @@ const createTicketSchema = z.object({
   freeTextDescription: z.string().max(2000).optional().nullable(),
   anyDeskCode:         z.string().max(20).optional().nullable(),
   extraData:           z.record(z.unknown()).optional().nullable(),
+  priority:            z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional().default("MEDIUM"),
 });
 
 export async function createTicket(req, res) {
@@ -80,6 +83,12 @@ export async function createTicket(req, res) {
   if (dualApproval && !targetDeptId) {
     return res.status(400).json({ error: "Selecione o setor de destino para a realocação" });
   }
+  if (targetDeptId) {
+    const targetDept = await prisma.department.findUnique({ where: { id: targetDeptId } });
+    if (!targetDept || !targetDept.active) {
+      return res.status(400).json({ error: "Setor de destino inválido ou inativo" });
+    }
+  }
 
   // ── Monta registros de aprovação ────────────────────────────────────────
   const approvalRecords = requiresApproval
@@ -89,11 +98,17 @@ export async function createTicket(req, res) {
       ]
     : [];
 
+  const slaDeadline = category.slaHours
+    ? new Date(Date.now() + category.slaHours * 60 * 60 * 1000)
+    : null;
+
   const ticketPayload = {
     requesterName:       requester.name,
     requesterCpf:        requester.cpf,
     department:          dept.name,
     departmentId:        dept.id,
+    priority:            data.priority ?? "MEDIUM",
+    slaDeadline,
     categoryId:          data.categoryId,
     subcategoryId:       (!isRemote && !category.allowsFreeText) ? data.subcategoryId : null,
     freeTextDescription: isRemote
@@ -167,7 +182,7 @@ export async function getTicketPublic(req, res) {
 
 // ── LIST ─────────────────────────────────────────────────────────────────────
 export async function listTickets(req, res) {
-  const { status, unitId, technicianId, from, to, categoryId, cursor, limit } = req.query;
+  const { status, unitId, technicianId, from, to, categoryId, cursor, limit, search } = req.query;
   const where = {};
 
   if (status)       where.status      = status;
@@ -178,6 +193,15 @@ export async function listTickets(req, res) {
     where.openedAt = {};
     if (from) where.openedAt.gte = new Date(from);
     if (to)   where.openedAt.lte = new Date(to);
+  }
+  if (search) {
+    const q = search.trim();
+    where.OR = [
+      { ticketNumber:        { contains: q } },
+      { requesterName:       { contains: q } },
+      { freeTextDescription: { contains: q } },
+      { department:          { contains: q } },
+    ];
   }
 
   // ── Filtros por role ────────────────────────────────────────────────────
@@ -248,6 +272,10 @@ export async function getTicket(req, res) {
         orderBy: { createdAt: "asc" },
       },
       feedback: true,
+      comments: {
+        include: { author: { select: { id: true, name: true, role: true } } },
+        orderBy: { createdAt: "asc" },
+      },
       approvals: {
         include: {
           chefDept: { select: { id: true, name: true } },
@@ -264,6 +292,7 @@ export async function getTicket(req, res) {
     cause:        ticket.cause,
     solution:     ticket.solution,
     history:      ticket.history,
+    comments:     ticket.comments,
     allowedNext:  allowedNext(ticket.status),
     feedback:     ticket.feedback,
   });
@@ -457,6 +486,146 @@ export async function submitFeedback(req, res) {
   res.status(201).json({ ok: true, id: fb.id });
 }
 
+// ── REOPEN ────────────────────────────────────────────────────────────────────
+export async function reopenTicket(req, res) {
+  const id = Number(req.params.id);
+  const ticket = await prisma.ticket.findUnique({ where: { id } });
+  if (!ticket) return res.status(404).json({ error: "Chamado não encontrado" });
+  if (!canReopen(ticket.status)) {
+    return res.status(400).json({ error: "Apenas chamados concluídos podem ser reabertos" });
+  }
+
+  // Usuário comum só pode reabrir o próprio chamado
+  if (req.user.role === "USER" && ticket.openedById !== req.user.id) {
+    return res.status(403).json({ error: "Você não tem permissão para reabrir este chamado" });
+  }
+
+  const { reason } = req.body || {};
+
+  await prisma.ticket.update({
+    where: { id },
+    data: {
+      status:      STATUS.OPEN,
+      completedAt: null,
+      cause:       null,
+      solution:    null,
+      history: {
+        create: {
+          fromStatus:   STATUS.COMPLETED,
+          toStatus:     STATUS.OPEN,
+          actorId:      req.user.id,
+          internalNote: reason ? `Reaberto: ${reason}` : "Chamado reaberto",
+        },
+      },
+    },
+  });
+
+  req.app.get("io")?.emit("ticket:updated", { ticketNumber: ticket.ticketNumber, status: STATUS.OPEN });
+  res.json({ ok: true });
+}
+
+// ── ASSIGN (transferir técnico/unidade sem mudar status) ──────────────────────
+export async function assignTicket(req, res) {
+  const id = Number(req.params.id);
+  const { assignedTechId, unitId } = req.body || {};
+  const ticket = await prisma.ticket.findUnique({ where: { id } });
+  if (!ticket) return res.status(404).json({ error: "Chamado não encontrado" });
+  if (ticket.status === STATUS.OPEN || ticket.status === STATUS.COMPLETED) {
+    return res.status(400).json({ error: "Chamado precisa estar em andamento para transferir" });
+  }
+
+  const patch = {};
+  if (assignedTechId !== undefined) patch.assignedTechId = assignedTechId ? Number(assignedTechId) : null;
+  if (unitId !== undefined)         patch.unitId         = unitId         ? Number(unitId)         : null;
+
+  const updated = await prisma.ticket.update({
+    where: { id },
+    data: {
+      ...patch,
+      history: {
+        create: {
+          fromStatus:   ticket.status,
+          toStatus:     ticket.status,
+          actorId:      req.user.id,
+          internalNote: "Transferência de responsabilidade",
+        },
+      },
+    },
+    include: { assignedTech: { select: { id: true, name: true } }, unit: true },
+  });
+
+  req.app.get("io")?.emit("ticket:updated", { ticketNumber: updated.ticketNumber, status: updated.status });
+  res.json({ ok: true, technician: updated.assignedTech, unit: updated.unit ? { id: updated.unit.id, name: updated.unit.name } : null });
+}
+
+// ── COMMENTS ─────────────────────────────────────────────────────────────────
+export async function listComments(req, res) {
+  const id = Number(req.params.id);
+  const ticket = await prisma.ticket.findUnique({ where: { id }, select: { id: true, openedById: true } });
+  if (!ticket) return res.status(404).json({ error: "Chamado não encontrado" });
+
+  // Usuário comum só vê comentários do próprio chamado
+  if (req.user.role === "USER" && ticket.openedById !== req.user.id) {
+    return res.status(403).json({ error: "Acesso negado" });
+  }
+
+  const comments = await prisma.ticketComment.findMany({
+    where: { ticketId: id },
+    include: { author: { select: { id: true, name: true, role: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  res.json(comments);
+}
+
+export async function addComment(req, res) {
+  const id = Number(req.params.id);
+  const { text } = req.body || {};
+  if (!text || !text.trim()) return res.status(400).json({ error: "Comentário não pode ser vazio" });
+
+  const ticket = await prisma.ticket.findUnique({ where: { id }, select: { id: true, openedById: true, status: true } });
+  if (!ticket) return res.status(404).json({ error: "Chamado não encontrado" });
+
+  // Usuário comum só comenta no próprio chamado e apenas se não estiver concluído
+  if (req.user.role === "USER") {
+    if (ticket.openedById !== req.user.id) return res.status(403).json({ error: "Acesso negado" });
+    if (ticket.status === STATUS.COMPLETED) return res.status(400).json({ error: "Não é possível comentar em chamados concluídos" });
+  }
+
+  const comment = await prisma.ticketComment.create({
+    data: { ticketId: id, authorId: req.user.id, text: text.trim() },
+    include: { author: { select: { id: true, name: true, role: true } } },
+  });
+
+  req.app.get("io")?.emit("ticket:comment", { ticketId: id });
+  res.status(201).json(comment);
+}
+
+// ── FEEDBACK (autenticado — por id do ticket) ─────────────────────────────────
+export async function submitFeedbackAuth(req, res) {
+  if (process.env.FEEDBACK_ENABLED !== "true") {
+    return res.status(404).json({ error: "Módulo de avaliação desativado" });
+  }
+  const id = Number(req.params.id);
+  const { rating, comment } = req.body || {};
+  const r = Number(rating);
+  if (!Number.isInteger(r) || r < 1 || r > 5) {
+    return res.status(400).json({ error: "Avaliação deve ser entre 1 e 5" });
+  }
+
+  const ticket = await prisma.ticket.findUnique({ where: { id } });
+  if (!ticket) return res.status(404).json({ error: "Chamado não encontrado" });
+  if (ticket.openedById !== req.user.id) return res.status(403).json({ error: "Acesso negado" });
+  if (ticket.status !== STATUS.COMPLETED) return res.status(400).json({ error: "Chamado ainda não foi concluído" });
+
+  const existing = await prisma.feedback.findUnique({ where: { ticketId: id } });
+  if (existing) return res.status(400).json({ error: "Avaliação já enviada" });
+
+  const fb = await prisma.feedback.create({
+    data: { ticketId: id, rating: r, comment: comment || null },
+  });
+  res.status(201).json({ ok: true, id: fb.id });
+}
+
 // ── Formato base de ticket para listagens ─────────────────────────────────────
 function formatTicket(t) {
   return {
@@ -470,6 +639,7 @@ function formatTicket(t) {
     freeTextDescription: t.freeTextDescription,
     extraData:           t.extraData,
     anyDeskCode:         t.anyDeskCode || null,
+    priority:            t.priority ?? "MEDIUM",
     isRemote:             !!(t.anyDeskCode),
     presential:           t.presential,
     requiresCauseSolution: t.requiresCauseSolution,
@@ -486,6 +656,7 @@ function formatTicket(t) {
     status:        t.status,
     unit:          t.unit        ? { id: t.unit.id,        name: t.unit.name }        : null,
     technician:    t.assignedTech || null,
+    slaDeadline:   t.slaDeadline,
     openedAt:      t.openedAt,
     viewedAt:      t.viewedAt,
     enRouteAt:     t.enRouteAt,

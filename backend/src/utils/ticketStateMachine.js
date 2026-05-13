@@ -22,6 +22,11 @@ const TRANSITIONS = {
   COMPLETED: [],
 };
 
+// Reabrir é uma transição especial — não aparece em allowedNext (para técnicos)
+export function canReopen(status) {
+  return status === "COMPLETED";
+}
+
 export function canTransition(from, to) {
   return (TRANSITIONS[from] || []).includes(to);
 }

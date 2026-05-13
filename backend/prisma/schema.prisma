@@ -53,6 +53,13 @@ enum OsTipo {
   OUTRO
 }
 
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 model Department {
   id              Int              @id @default(autoincrement())
   name            String           @unique
@@ -94,6 +101,7 @@ model User {
   assignedTickets    Ticket[]   @relation("AssignedTechnician")
   openedTickets      Ticket[]   @relation("TicketOpener")
   history            TicketHistory[]
+  comments           TicketComment[]
   resolvedRequests   PasswordResetRequest[] @relation("ResolvedRequests")
   createdWorkOrders  WorkOrder[]      @relation("OsCreator")
   osTecnico          OsTecnico[]
@@ -127,6 +135,7 @@ model Category {
   sortOrder      Int           @default(0)
   allowsFreeText Boolean       @default(false)
   n1Tips         String?       @db.Text
+  slaHours       Int?
   subcategories  Subcategory[]
   tickets        Ticket[]
 }
@@ -167,18 +176,21 @@ model Ticket {
   openedBy            User?        @relation("TicketOpener", fields: [openedById], references: [id])
   anyDeskCode         String?
   extraData           Json?
+  priority            Priority     @default(MEDIUM)
   approvalStatus      ApprovalStatus @default(NOT_REQUIRED)
   approvalNote        String?      @db.Text
   presential            Boolean      @default(true)
   requiresCauseSolution Boolean      @default(true)
   cause               String?      @db.Text
   solution            String?      @db.Text
+  slaDeadline         DateTime?
   openedAt            DateTime     @default(now())
   viewedAt            DateTime?
   enRouteAt           DateTime?
   inServiceAt         DateTime?
   completedAt         DateTime?
   history             TicketHistory[]
+  comments            TicketComment[]
   feedback            Feedback?
   workOrders          TicketWorkOrder[]
   approvals           TicketApproval[]
@@ -231,6 +243,33 @@ model Feedback {
   rating    Int
   comment   String?  @db.Text
   createdAt DateTime @default(now())
+}
+
+model TicketComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int?
+  actorName  String
+  action     String
+  targetType String
+  targetId   String?
+  details    String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 model ConfigFlag {
